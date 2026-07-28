@@ -312,6 +312,9 @@ function playBook(b, startTime){
   playerNow.textContent=nm;
   audio.src=src; renderSubtitle(b.text); applySpeed();   // 设置 src 后按需加载该篇音频
   const seekPlay=()=>{ try{ if(startTime>0) audio.currentTime=startTime; }catch(e){} audio.play().catch(()=>{}); };
+  // preload=none 时仅设置 src 不会发起网络请求，必须主动 play() 触发流式加载（否则 loadedmetadata 永不触发，死锁）
+  audio.play().catch(()=>{});   // 主动触发流式加载（数据 URI / 远程音频均通用）
+  if(audio.readyState>=1) seekPlay(); else audio.addEventListener('loadedmetadata', seekPlay, {once:true});
   if(audio.readyState>=1) seekPlay(); else audio.addEventListener('loadedmetadata', seekPlay, {once:true});
   saveProgress();
 }
