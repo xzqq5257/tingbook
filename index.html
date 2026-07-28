@@ -58,6 +58,10 @@
   #resume-bar button.go{background:var(--accent2);color:#06281c;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:14px;font-weight:600}
   #resume-bar button.rb-close{background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px;line-height:1}
   .hint{color:var(--muted);font-size:12px;margin:4px 14px 6px}
+  .inp{background:#0b0d12;border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:6px 8px;font-size:13px;width:150px}
+  .poly-row{display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap}
+  .poly-row .pf{font-weight:600;min-width:64px}
+  .poly-row .pt{color:var(--accent2);min-width:64px}
 </style>
 </head>
 <body>
@@ -125,20 +129,35 @@
     <div class="cover-head">
       <div class="cover-kicker">🎧 克隆人声 · 离线听书</div>
       <h1>倾听你的声音</h1>
-      <p class="cover-sub">用你最熟悉的声音，离线朗读 22 篇古典诗文</p>
-      <div class="cover-tags"><span>22 篇诗文</span><span>点哪播哪</span><span>断点续播</span><span>倍速 · 定时</span><span>同步字幕</span></div>
+      <p class="cover-sub">用你最熟悉的声音，离线朗读 23 篇古典诗文</p>
+      <div class="cover-tags"><span>23 篇诗文</span><span>点哪播哪</span><span>断点续播</span><span>倍速 · 定时</span><span>同步字幕</span></div>
     </div>
   </div>
 </header>
 
 <div class="lib-bar">
   <button id="play-all">▶ 一键播放全部</button>
+  <button id="shuffle-all">🔀 随机播放</button>
   <button id="stop-all" class="ghost" style="display:none">⏹ 停止</button>
+  <button id="voice-swap" class="ghost">🎙 一键换声</button>
+  <button id="poly-btn" class="ghost">📝 多音字校准</button>
+  <input id="voice-file" type="file" accept="video/*,audio/*,.wav,.mp3,.m4a,.flac,.ogg" style="display:none"/>
   <span class="playing-all" id="playing-all-status"></span>
 </div>
 <div id="resume-card" class="card">
   <div class="row"><div><div class="title" id="resume-title">继续播放</div><div class="meta" id="resume-meta"></div></div>
     <button id="resume-go">▶ 继续播放</button></div>
+</div>
+<div id="poly-panel" class="card" style="display:none">
+  <div class="row"><div class="title">📝 多音字校准</div><button id="poly-close" class="badge">收起</button></div>
+  <p class="meta">规则仅替换语音“读音”，字幕仍显示原字。勾选启用并保存后，对新生成的内容立即生效（已生成的 22 篇不受影响）。</p>
+  <div id="poly-rules"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+    <input id="poly-from" class="inp" placeholder="原字/词，如 银行"/>
+    <input id="poly-to" class="inp" placeholder="同音替换，如 银航"/>
+    <button id="poly-add" class="play-btn">+ 添加规则</button>
+  </div>
+  <div style="margin-top:8px"><button id="poly-save" class="play-btn">💾 保存规则</button><span id="poly-msg" class="meta" style="margin-left:8px"></span></div>
 </div>
 <div class="hint">封面秒开，点哪篇才加载哪篇音频（音频托管在 GitHub Pages，按需流式播放）。带同步字幕、倍速、定时关闭与断点续播。</div>
 <div id="list"></div>
@@ -394,6 +413,79 @@ BOOKS.forEach((b,i)=>{
 try{ const sv = localStorage.getItem(SPEED_KEY); if(sv) document.getElementById('speed').value = sv; }catch(e){}
 loadProgress().then(showResume);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ loadProgress().then(showResume); } });
+
+// ---------------- 随机播放 ----------------
+function shuffleArray(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function shufflePlay(){
+  playlist=shuffleArray(BOOKS); playingAll=true; plIndex=0;
+  document.getElementById('play-all').style.display='none';
+  document.getElementById('stop-all').style.display='';
+  document.getElementById('playing-all-status').textContent='🔀 随机播放中';
+  playItem(0);
+}
+document.getElementById('shuffle-all').onclick=shufflePlay;
+
+// ---------------- 一键换声音源（视频/音频/歌曲 → 抽声克隆） ----------------
+const voiceFile=document.getElementById('voice-file');
+document.getElementById('voice-swap').onclick=()=>voiceFile.click();
+voiceFile.onchange=async ()=>{
+  const f=voiceFile.files[0]; if(!f) return;
+  const st=document.getElementById('playing-all-status');
+  st.textContent='🎙 正在提取人声…';
+  try{
+    const fd=new FormData(); fd.append('file', f);
+    const r=await fetch('/api/voice-source',{method:'POST',body:fd});
+    const j=await r.json();
+    if(r.ok && j.status==='ok') st.textContent='✅ 换声成功（参考音 '+fmtTime(j.duration)+'）';
+    else st.textContent='❌ '+(j.detail||j.error||'换声失败');
+  }catch(e){ st.textContent='❌ 上传失败，请重试'; }
+  voiceFile.value='';
+};
+
+// ---------------- 多音字校准 ----------------
+let polyRules=[];
+const polyPanel=document.getElementById('poly-panel');
+const polyRulesEl=document.getElementById('poly-rules');
+document.getElementById('poly-btn').onclick=()=>{
+  polyPanel.style.display = (polyPanel.style.display==='none') ? '' : 'none';
+  if(polyPanel.style.display!=='none') loadPoly();
+};
+document.getElementById('poly-close').onclick=()=>polyPanel.style.display='none';
+async function loadPoly(){
+  try{ const j=await (await fetch('/api/polyphone-rules')).json(); polyRules=j.rules||[]; }
+  catch(e){ polyRules=[]; }
+  renderPoly();
+}
+function renderPoly(){
+  polyRulesEl.innerHTML='';
+  if(!polyRules.length){ polyRulesEl.innerHTML='<p class="meta">暂无规则。用上方输入框添加“原字 → 同音替换字”，例如：银行 → 银航（行读 háng）。</p>'; return; }
+  polyRules.forEach((r,i)=>{
+    const row=document.createElement('div'); row.className='poly-row';
+    row.innerHTML='<label><input type="checkbox" '+(r.enabled?'checked':'')+' data-i="'+i+'" class="pe"/> <span class="pf">'+r.from+'</span> → <span class="pt">'+r.to+'</span></label><span class="meta">'+(r.note||'')+'</span>';
+    const del=document.createElement('button'); del.className='badge'; del.textContent='删除';
+    del.onclick=()=>{ polyRules.splice(i,1); renderPoly(); };
+    row.appendChild(del);
+    polyRulesEl.appendChild(row);
+  });
+  polyRulesEl.querySelectorAll('.pe').forEach(cb=>cb.onchange=e=>{ polyRules[+cb.dataset.i].enabled=cb.checked; });
+}
+document.getElementById('poly-add').onclick=()=>{
+  const f=document.getElementById('poly-from').value.trim();
+  const t=document.getElementById('poly-to').value.trim();
+  if(!f||!t) return;
+  polyRules.push({from:f,to:t,enabled:true,note:''});
+  document.getElementById('poly-from').value=''; document.getElementById('poly-to').value='';
+  renderPoly();
+};
+document.getElementById('poly-save').onclick=async ()=>{
+  const msg=document.getElementById('poly-msg'); msg.textContent='保存中…';
+  polyRulesEl.querySelectorAll('.pe').forEach(cb=>{ polyRules[+cb.dataset.i].enabled=cb.checked; });
+  try{
+    const r=await fetch('/api/polyphone-rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules:polyRules})});
+    const j=await r.json();
+    msg.textContent = (j.status==='ok') ? ('✅ 已保存 '+j.count+' 条，新生成即生效') : '❌ 保存失败';
+  }catch(e){ msg.textContent='❌ 保存失败'; }
+};
 </script>
 </body>
 </html>
