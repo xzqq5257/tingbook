@@ -1,7 +1,7 @@
 # Pages Deploy Validation
-# 在每次 push 到 main 后，等待 GitHub Pages 构建完成，并校验
+# 在每次 push 到 main 后，等待 GitHub Pages「新」构建上线，并校验
 # 「Listen To Your Voice」模块（listen-to-your-voice/ 下的音频）已正确上线、可访问、未被截断；
-# 同时确认 23 本有声书已用 wuyongss 声纹（真实语音克隆）重新朗读并覆盖上线。
+# 同时确认 23 本有声书已用 Listen To Your Voice 声纹重新朗读并覆盖上线。
 name: Pages Deploy Validation
 
 on:
@@ -19,17 +19,20 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
-      - name: Wait for GitHub Pages build
+      - name: Wait for the NEW GitHub Pages build to go live
         run: |
-          # legacy Pages 构建通常 1-3 分钟；轮询直到站点可达
-          for i in $(seq 1 36); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -I "https://xzqq5257.github.io/tingbook/" || true)
-            if [ "$code" = "200" ]; then
-              echo "site reachable (attempt $i, http=$code)"; break
+          BASE="https://xzqq5257.github.io/tingbook"
+          # 用「新」模块独有的字符串作为判别条件：只有部署后的页面真正包含
+          # "Listen To Your Voice" 时，才算新构建已上线。避免旧站点(root 一直 200)
+          # 导致误判、提前校验尚未上线的内容（这正是此前偶发失败的根因）。
+          for i in $(seq 1 84); do
+            html=$(curl -fsSL "$BASE/" || true)
+            if echo "$html" | grep -q "Listen To Your Voice"; then
+              echo "new build is live (attempt $i)"; break
             fi
-            echo "waiting for build (http=$code) attempt $i"; sleep 10
+            echo "waiting for new build (attempt $i)"; sleep 10
           done
 
       - name: Validate Listen To Your Voice audition module is live
@@ -43,38 +46,43 @@ jobs:
           echo "$html" | grep -q "Listen To Your Voice" || { echo "MISSING: Listen To Your Voice section"; fail=1; }
           echo "$html" | grep -q "ltyv_read_zanghuayin" || { echo "MISSING: ltyv_read_zanghuayin reference"; fail=1; }
 
-          # 2) 真实语音克隆音频均可达：原声试听(~1.1MB) + 葬花吟朗读(>4MB，防 CDN 截断)
-          for f in ltyv_reference.wav ltyv_read_zanghuayin.wav; do
-            out=$(curl -s -o /dev/null -w "http=%{http_code} size=%{size_download}" "$BASE/listen-to-your-voice/$f")
-            echo "$f -> $out"
-            code=${out#http=}; code=${code%% *}
-            sz=${out#*size=}
-            min=100000
-            if [ "$f" = "ltyv_read_zanghuayin.wav" ]; then min=4000000; fi
-            if [ "$code" != "200" ] || [ "${sz:-0}" -lt "$min" ]; then
-              echo "FAIL: $f not served correctly ($out)"; fail=1
-            fi
-          done
+          # 2) 真实语音试听音频均可达：原声试听(~1.1MB) + 葬花吟朗读(>4MB，防 CDN 截断)
+          check_asset () {
+            f="$1"; min="$2"
+            for try in 1 2 3; do
+              out=$(curl -fsSL -o /dev/null -w "http=%{http_code} size=%{size_download}" "$BASE/listen-to-your-voice/$f" || true)
+              code=${out#http=}; code=${code%% *}; sz=${out#*size=}
+              if [ "$code" = "200" ] && [ "${sz:-0}" -ge "$min" ]; then
+                echo "$f -> OK ($out)"; return 0
+              fi
+              echo "$f -> retry $try ($out)"; sleep 5
+            done
+            echo "FAIL: $f not served correctly ($out)"; fail=1; return 1
+          }
+          check_asset ltyv_reference.wav 100000
+          check_asset ltyv_read_zanghuayin.wav 4000000
 
-          # 3) 葬花吟必须完整（真实克隆 ~110s，阈值 4MB 防截断）
-          zout=$(curl -s -o /dev/null -w "%{size_download}" "$BASE/listen-to-your-voice/ltyv_read_zanghuayin.wav")
+          # 3) 葬花吟必须完整（阈值 4MB 防截断）
+          zout=$(curl -fsSL -o /dev/null -w "%{size_download}" "$BASE/listen-to-your-voice/ltyv_read_zanghuayin.wav" || true)
           echo "ltyv_read_zanghuayin.wav size = $zout bytes"
           if [ "${zout:-0}" -lt 4000000 ]; then
             echo "FAIL: ltyv_read_zanghuayin.wav appears truncated ($zout bytes)"; fail=1
           fi
 
-          # 4) 确认 23 本有声书已用 wuyongss 声纹（真实语音克隆）覆盖上线（抽 3 本；
-          #    用 python 做正确的百分号编码，避免中文文件名编码错位导致 404）
+          # 4) 确认 23 本有声书已覆盖上线（抽 3 本；python 做百分号编码避免中文 404）
           books=("出师表.mp3" "洛神赋.mp3" "长恨歌.mp3")
           for b in "${books[@]}"; do
             enc=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$b")
-            out=$(curl -s -o /dev/null -w "http=%{http_code} size=%{size_download}" "$BASE/audio/$enc")
-            echo "book $b ($enc) -> $out"
-            code=${out#http=}; code=${code%% *}
-            sz=${out#*size=}
-            if [ "$code" != "200" ] || [ "${sz:-0}" -lt 50000 ]; then
-              echo "FAIL: book $b not served correctly ($out)"; fail=1
-            fi
+            ok=0
+            for try in 1 2 3; do
+              out=$(curl -fsSL -o /dev/null -w "http=%{http_code} size=%{size_download}" "$BASE/audio/$enc" || true)
+              code=${out#http=}; code=${code%% *}; sz=${out#*size=}
+              if [ "$code" = "200" ] && [ "${sz:-0}" -ge 50000 ]; then
+                echo "book $b ($enc) -> OK ($out)"; ok=1; break
+              fi
+              echo "book $b ($enc) -> retry $try ($out)"; sleep 5
+            done
+            [ "$ok" = "1" ] || { echo "FAIL: book $b not served correctly"; fail=1; }
           done
 
           if [ "$fail" -ne 0 ]; then
