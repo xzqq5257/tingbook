@@ -486,6 +486,15 @@ const HIDDEN_KEY = 'ltyv_hidden_files_v1';
 function loadHidden(){ try{ return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY)||'[]')); }catch(e){ return new Set(); } }
 function saveHidden(s){ try{ localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s])); }catch(e){} }
 let hiddenFiles = loadHidden();
+const ADMIN_KEY = "ltyv-del-2026"; // 需与 Cloudflare Pages 环境变量 ADMIN_KEY 设为相同值，后端删除才会生效（否则仅本地隐藏）
+async function deleteBackend(file){
+  try{
+    const r = await fetch('/api/delete', {method:'POST', headers:{'content-type':'application/json','x-admin-key':ADMIN_KEY}, body: JSON.stringify({file})});
+    if(!r.ok) return false;
+    const j = await r.json().catch(()=>({}));
+    return !!j.ok;
+  }catch(e){ return false; }
+}
 function isHidden(f){ return hiddenFiles.has(f); }
 function hideFile(f){ hiddenFiles.add(f); saveHidden(hiddenFiles); updateRestoreRow(); }
 function updateRestoreRow(){ const r=document.getElementById('restore-row'); if(r) r.style.display = hiddenFiles.size ? 'block' : 'none'; }
@@ -509,7 +518,12 @@ BOOKS.forEach((b,i)=>{
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
   card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
-  card.querySelector('.del-btn').onclick=()=>{ if(confirm('从「我的听单」移除《'+b.title+'》？\n（仅隐藏显示，不会删除服务器上的音频；可在下方「恢复已删除条目」找回）')){ hideFile(b.file); card.remove(); } };
+  card.querySelector('.del-btn').onclick=async ()=>{
+    if(!confirm('永久删除《'+b.title+'》？\n这将从服务器删除音频并移除播放条目，且无法撤销。')) return;
+    hideFile(b.file); card.remove();  // 本地即时反馈
+    const ok = await deleteBackend(b.file);
+    if(!ok) alert('后台删除失败：仅本地隐藏。可稍后重试，或到仓库手动删除。');
+  };
   listEl.appendChild(card);
 });
 
@@ -538,7 +552,12 @@ LTYV.forEach((b,i)=>{
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
   card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
-  card.querySelector('.del-btn').onclick=()=>{ if(confirm('从「我的听单」移除《'+b.title+'》？\n（仅隐藏显示，不会删除服务器上的音频）')){ hideFile(b.file); card.remove(); } };
+  card.querySelector('.del-btn').onclick=async ()=>{
+    if(!confirm('永久删除《'+b.title+'》？\n这将从服务器删除音频并移除播放条目，且无法撤销。')) return;
+    hideFile(b.file); card.remove();  // 本地即时反馈
+    const ok = await deleteBackend(b.file);
+    if(!ok) alert('后台删除失败：仅本地隐藏。可稍后重试，或到仓库手动删除。');
+  };
   ltyvEl.appendChild(card);
 });
 

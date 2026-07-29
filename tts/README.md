@@ -71,3 +71,20 @@ python generate_all.py --ref ../path/to/wuyongss.wav
 - `ref_text`：参考音频的字幕文本。若能提供 wuyongss.wav 的文字内容，克隆质量会明显更好；缺省留空也能克隆音色。
 - `nfe_step`：推理步数（默认 32，越大越慢越稳）。
 - `device`：自动检测 CUDA；无 GPU 时用 CPU（很慢，仅建议小样测试）。
+
+## 从播放页彻底删除音频（后端同步删除）
+
+播放页每张卡片的 🗑 按钮现在**不仅本地隐藏，还会真正删除服务器上的文件**：点击后前端 `POST /api/delete { file }` 调 Cloudflare Pages Function（`functions/api/delete.js`），由服务端用 GitHub token 经 Git Data API **删除音频文件并从 `index.html` 的 BOOKS/LTYV 移除条目**，提交到 `main` 后 GitHub Pages 与 Cloudflare Pages 自动重新部署，删除对所有访客生效。
+
+需要的 Cloudflare Pages 环境变量（Dashboard → 你的 Pages 项目 → Settings → Environment variables，作用域 Production）：
+- `GH_TOKEN`：有 `repo` 写权限的 GitHub Personal Access Token（用于提交删除）。
+- `REPO_OWNER`：`xzqq5257`
+- `REPO_NAME`：`tingbook`
+- `ADMIN_KEY`：一个自定义暗号字符串。
+
+前端 `index.html` 里也有一个 `const ADMIN_KEY = "";`，**必须把它改成和 Cloudflare 的 `ADMIN_KEY` 环境变量相同的值**，否则 `/api/delete` 会被函数拒绝（此时删除按钮仅做本地隐藏）。该暗号是基本门禁（会出现在浏览器 JS 中，非强鉴权），目的是避免被随意调用；真正的权限边界由 `GH_TOKEN` 的写范围决定。
+
+安全/实现要点：
+- 路径白名单：函数只允许删除 `audio/` 或 `listen-to-your-voice/` 下的 `.mp3`/`.wav`，并拒绝 `..` / 绝对路径，无法删除 `index.html` 等其它文件。
+- 删除通过单提交（base_tree）完成，同时移除 `index.html` 条目与音频 blob；若音频已不存在则仅更新 `index.html`。
+- 在 GitHub Pages（`xzqq5257.github.io/tingbook`，纯静态、无 Functions）上 `/api/delete` 不存在，删除按钮自动退化为「仅本地隐藏」，行为安全。
