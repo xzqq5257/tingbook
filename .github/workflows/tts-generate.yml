@@ -30,6 +30,12 @@ jobs:
     # ↓↓↓ 改成你自备 GPU runner 的 label（在 runner 配置里看到的那些）↓↓↓
     runs-on: [self-hosted, gpu]
     timeout-minutes: 360
+    # Windows self-hosted runner 默认 shell 是 PowerShell，本工作流步骤用的是 bash 语法
+    # （pip、if/then/fi、$GITHUB_OUTPUT 重定向等），统一切到 Git Bash 执行。
+    # 前置要求：runner 机器已安装 Git for Windows（自带 bash）。
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout (with push token)
         uses: actions/checkout@v4
