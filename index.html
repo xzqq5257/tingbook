@@ -29,6 +29,7 @@
   .lib-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 14px 4px}
   .lib-bar button{padding:9px 16px;font-size:14px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}
   .lib-bar button.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
+  .lib-bar button#continue-all{background:var(--accent2);color:#06281c;border:1px solid var(--accent2);font-weight:600;display:none}
   .playing-all{color:var(--accent2);font-size:13px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 14px}
   .card.playing{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
@@ -156,6 +157,7 @@
 
 <div class="lib-bar">
   <button id="play-all">▶ 一键播放全部</button>
+  <button id="continue-all" class="ghost" style="display:none">⏯ 继续播放</button>
   <button id="shuffle-all">🔀 随机播放</button>
   <button id="stop-all" class="ghost" style="display:none">⏹ 停止</button>
   <button id="voice-swap" class="ghost">🎙 一键换声</button>
@@ -244,6 +246,7 @@ let curSentences = [], curMarks = null, curActive = -1;
 const PROGRESS_KEY = 'tingbook_progress_v1';
 const SPEED_KEY = 'tingbook_speed_v1';
 let currentPlay = { file:'', name:'', text:'', playlist:null, index:-1 };
+let continueProg = null;
 let lastSave = 0;
 let sleepTimer = null, sleepInterval = null, sleepEnd = 0;
 
@@ -298,12 +301,32 @@ function setSleep(min){
   }, 1000);
 }
 
+function setupContinueAll(prog){
+  const btn=document.getElementById('continue-all');
+  if(prog && prog.playlist && prog.playlist.length && prog.time>=3){
+    const idx = (typeof prog.index==='number' && prog.index>=0) ? prog.index : 0;
+    const bk = BOOKS[prog.playlist[idx]];
+    const name = (bk && bk.title) || prog.name || '列表';
+    btn.textContent = `⏯ 继续播放（第 ${idx+1}/${prog.playlist.length} 首：${name}）`;
+    btn.style.display='';
+    continueProg = prog;
+  } else {
+    btn.style.display='none';
+    continueProg = null;
+  }
+}
 function showResume(prog){
+  // 整列表续播（记忆了 playlist）统一交给顶部「⏯ 继续播放」按钮，避免重复提示
+  if(prog && prog.playlist && prog.playlist.length){
+    document.getElementById('resume-card').style.display='none';
+    setupContinueAll(prog);
+    return;
+  }
   const card=document.getElementById('resume-card');
   const valid = prog && prog.file && prog.time>=3;
   if(!valid){ card.style.display='none'; resumeBar.style.display='none';
-    document.getElementById('pp-resume').style.display='none'; return; }
-  const name = (prog.playlist && prog.playlist[prog.index]) ? prog.playlist[prog.index].name : prog.name;
+    document.getElementById('pp-resume').style.display='none'; setupContinueAll(null); return; }
+  const name = prog.name || '上次收听';
   const when = prog.ts ? new Date(prog.ts).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
   card.style.display='';
   document.getElementById('resume-title').textContent='继续播放：'+name;
@@ -314,6 +337,7 @@ function showResume(prog){
   document.getElementById('pp-resume').style.display='';
   document.getElementById('pp-resume').onclick=()=>resumePlay(prog);
   updateResumeBar();
+  setupContinueAll(null);
 }
 function updateResumeBar(){
   const has = resumeBar.dataset.prog;
@@ -373,6 +397,8 @@ function hideResumeBars(){ resumeBar.style.display='none'; const rc=document.get
 function updateNowPlaying(){ const np=document.getElementById('now-playing'); if(currentPlay.name){ np.style.display=''; np.textContent='🎵 '+currentPlay.name; } }
 function playBook(b, startTime){
   startTime = startTime || 0;
+  const cb=document.getElementById('continue-all'); if(cb) cb.style.display='none';
+  continueProg=null;
   const src = b.file || b.audio || b.url;     // 流式版用 .file；单文件用 .audio/.url
   const nm = b.title || b.name;
   playingAll = playingAll && playlist.length > 0;
@@ -446,6 +472,7 @@ function stopAll(){
   document.querySelectorAll('#list .card.playing').forEach(c=>c.classList.remove('playing'));
 }
 document.getElementById('play-all').onclick=playAll;
+document.getElementById('continue-all').onclick=()=>{ if(continueProg) resumePlay(continueProg); };
 document.getElementById('stop-all').onclick=stopAll;
 
 // ---------------- 播放页控制 ----------------
