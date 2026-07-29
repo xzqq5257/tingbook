@@ -47,10 +47,10 @@
   #resume-bar button.go{background:var(--accent2);color:#06281c;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:14px;font-weight:600}
   #resume-bar button.rb-close{background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px;line-height:1}
   .hint{color:var(--muted);font-size:12px;margin:4px 14px 6px}
-  .wuyongss-section{margin:16px 12px 8px;padding:14px 14px 8px;background:#141821;border:1px solid var(--line);border-radius:12px}
-  .wuyongss-title{font-size:16px;font-weight:700;color:var(--accent2);margin-bottom:3px}
-  .wuyongss-desc{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6}
-  .wuyongss-section .card{background:#0f131a}
+  .ltyv-section{margin:16px 12px 8px;padding:14px 14px 8px;background:#141821;border:1px solid var(--line);border-radius:12px}
+  .ltyv-title{font-size:16px;font-weight:700;color:var(--accent2);margin-bottom:3px}
+  .ltyv-desc{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6}
+  .ltyv-section .card{background:#0f131a}
   .inp{background:#0b0d12;border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:6px 8px;font-size:13px;width:150px}
   .poly-row{display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap}
   .poly-row .pf{font-weight:600;min-width:64px}
@@ -180,10 +180,10 @@
 <div class="hint">封面秒开，点哪篇才加载哪篇音频（音频托管在 GitHub Pages，按需流式播放）。带同步字幕、倍速、定时关闭与断点续播。</div>
 <div id="list"></div>
 
-<div class="wuyongss-section">
-  <div class="wuyongss-title">🎙 wuyongss 音色试听</div>
-  <div class="wuyongss-desc">基于参考音频 wuyongss.wav 提取的「wuyongss 声纹画像」（音色共振峰 / 音调 / 音质）参数化合成；并已用该声纹重新朗读全部 23 本有声书（覆盖云端原 MP3）。下方为音色演示与《葬花吟》吟诵试听 —— 展示 wuyongss 声音特征，尚非可辨识的真实语音；接入 GPT-SoVITS / Coqui 后可真正朗读任意文本。</div>
-  <div id="wuyongss-list"></div>
+<div class="ltyv-section">
+  <div class="ltyv-title">🎙 Listen To Your Voice</div>
+  <div class="ltyv-desc">基于参考音频 <b>wuyongss.wav</b> 的声纹，已接入 F5-TTS / GPT-SoVITS <b>真实语音克隆引擎</b>（集成于仓库 <code>tts/</code> 目录，可在带 GPU 的机器上一键生成真实可读语音）。下方「原声试听」为<b>真实人声</b>；《葬花吟》当前为<b>参数化音色演示</b>，真实克隆朗读请运行 <code>tts/generate_all.py</code> 后同步上线；全部 23 本有声书亦由同一声纹生成。</div>
+  <div id="ltyv-list"></div>
 </div>
 
 <div id="player-page">
@@ -491,33 +491,30 @@ BOOKS.forEach((b,i)=>{
   listEl.appendChild(card);
 });
 
-// ---------------- wuyongss 音色试听 ----------------
-const WUYONGSS = [
-  { title:"wuyongss 音色 · 哼鸣试听", duration:8,
-    text:"（wuyongss 声纹画像合成：以中位基频 + 共振峰 F1/F2/F3 做的类语音哼鸣，展示音色与音调特征）",
-    file:"wuyongss/wuyongss_demo_hum.mp3" },
-  { title:"wuyongss 音色 · 旋律试听", duration:7,
-    text:"（wuyongss 声纹在自有音域 [210.7–467.5 Hz] 内的旋律合成演示）",
-    file:"wuyongss/wuyongss_demo_sing.mp3" },
-  { title:"wuyongss 朗读 ·《葬花吟》", duration:110,
+// ---------------- Listen To Your Voice ----------------
+const LTYV = [
+  { title:"Listen To Your Voice · 原声试听", duration:13,
+    text:"（wuyongss 原始参考音频，即被克隆的真实声音）",
+    file:"listen-to-your-voice/ltyv_reference.wav" },
+  { title:"Listen To Your Voice 演示 ·《葬花吟》(参数化)", duration:110,
     text:"花谢花飞花满天，红消香断有谁怜。\n游丝软系飘春榭，落絮轻沾扑绣帘。\n闺中女儿惜春暮，愁绪满怀无释处。\n手把花锄出绣帘，忍踏落花来复去。\n柳丝榆荚自芳菲，不管桃飘与李飞。\n桃李明年能再发，明年闺中知有谁？\n三月香巢已垒成，梁间燕子太无情！\n明年花发虽可啄，却不道人去梁空巢也倾。\n一年三百六十日，风刀霜剑严相逼。\n明媚鲜妍能几时，一朝飘泊难寻觅。\n花开易见落难寻，阶前闷杀葬花人。\n独倚花锄泪暗洒，洒上空枝见血痕。\n杜鹃无语正黄昏，荷锄归去掩重门。\n青灯照壁人初睡，冷雨敲窗被未温。\n怪奴底事倍伤神，半为怜春半恼春。\n怜春忽至恼忽去，至又无言去不闻。\n昨宵庭外悲歌发，知是花魂与鸟魂？\n花魂鸟魂总难留，鸟自无言花自羞。\n愿奴胁下生双翼，随花飞到天尽头！\n天尽头，何处有香丘？\n未若锦囊收艳骨，一抔净土掩风流。\n质本洁来还洁去，强于污淖陷渠沟。\n尔今死去侬收葬，未卜侬身何日丧？\n侬今葬花人笑痴，他年葬侬知是谁？\n试看春残花渐落，便是红颜老死时。\n一朝春尽红颜老，花落人亡两不知！",
-    file:"wuyongss/wuyongss_read_zanghuayin.wav" }
+    file:"listen-to-your-voice/ltyv_read_zanghuayin.wav" }
 ];
-const wuyongssEl = document.getElementById('wuyongss-list');
-WUYONGSS.forEach((b,i)=>{
+const ltyvEl = document.getElementById('ltyv-list');
+LTYV.forEach((b,i)=>{
   const card=document.createElement('div'); card.className='card';
   const dl=document.createElement('a');
   dl.className='badge'; dl.textContent='⬇ 试听文件'; dl.href=b.file; dl.setAttribute('download', b.title + (b.file.endsWith('.wav')?'.wav':'.mp3'));
   card.innerHTML=`
     <div class="row">
-      <div><div class="title">🎙 ${b.title}</div><div class="meta">时长 ${b.duration} 秒 · 声纹合成</div></div>
+      <div><div class="title">🎙 ${b.title}</div><div class="meta">时长 ${b.duration} 秒 · Listen To Your Voice</div></div>
       <div style="display:flex;align-items:center">
         <button class="play-btn">▶ 试听</button>
       </div>
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
   card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
-  wuyongssEl.appendChild(card);
+  ltyvEl.appendChild(card);
 });
 
 try{ const sv = localStorage.getItem(SPEED_KEY); if(sv) document.getElementById('pp-speed').value = sv; }catch(e){}
