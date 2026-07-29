@@ -20,11 +20,32 @@ python download_models.py
 # 2) 单条试听：用 wuyongss 声纹克隆朗读《葬花吟》
 python infer.py --ref ../path/to/wuyongss.wav --text "花谢花飞花满天，红消香断有谁怜。" --out ../listen-to-your-voice/ltyv_read_zanghuayin.wav
 
-# 3) 一键生成全部：23 本有声书 + 葬花吟，覆盖 audio/*.mp3 与 listen-to-your-voice/
+# 3) 一键生成全部：24 本有声书 + 葬花吟，覆盖 audio/*.mp3 与 listen-to-your-voice/
 python generate_all.py --ref ../path/to/wuyongss.wav
 ```
 
 生成后用任意方式推回仓库（或在本目录直接 `git push`），站点即获得**真实可读**的 wuyongss 声纹语音。
+
+## 新增书目（重要）
+
+**全部朗读内容都来自 `index.html` 里的 `BOOKS` 数组**——`generate_all.py` 通过 `json.loads` 解析它来批量生成真实语音。
+因此「加一本新书」只需要往 `BOOKS` 加一条，真实语音会在下次 `tts-generate` 运行时自动生成并覆盖。
+
+### 步骤（以《侠客行》为例）
+1. **准备文本**：把全文写进 `BOOKS` 条目里的 `text` 字段，句子间用 `\n` 换行（会被解析器合并为逗号分隔）。
+2. **在 `index.html` 的 `BOOKS` 数组末尾追加一条**（保持 JSON 格式、字段齐全）：
+   ```js
+   {title:"侠客行", duration:42, text:"赵客缦胡缨，吴钩霜雪明。\n银鞍照白马，飒沓如流星。", file:"audio/侠客行.mp3"},
+   ```
+   - `duration` 可先估算（秒），仅用于播放页进度展示，真实语音生成后不影响功能。
+   - `file` 命名为 `audio/<书名>.mp3`，与 `generate_all.py` 的输出路径一致即可。
+3. **（可选）先放一个试听占位**：若想马上能听（参数化音色演示，非真实语音），可用仓库里的
+   `synth_wuyongss.py` 按 wuyongss 声纹画像合成一个 `audio/<书名>.mp3`；等 GPU runner 跑过一次后会被真实语音覆盖。
+4. **推送**：`git push origin main` 后——GitHub Pages 与 Cloudflare Pages（`tingbook.pages.dev`）都会自动重新部署；
+   若同时接了 GPU runner，真实语音生成完会再自动部署一次（见下方「自动生成」）。
+
+> 💡 脚本 `add_xiakexing.py`（工作区根目录）就是「合成参数化试听 + 插入 BOOKS」的完整示例，新增其他书目时照抄即可。
+> ⚠️ `BOOKS` 是**标准 JSON 数组**（`"title": "..."` 带引号键），不要写成老式 `title:"..."`，否则 `generate_all.py` 解析会失败、真实语音生成不出。
 
 ## 切换为 GPT-SoVITS（可选）
 如需更高拟真度，可改用 GPT-SoVITS：用 `wuyongss.wav` 作为参考音频，运行其 few-shot 推理，
@@ -44,7 +65,7 @@ python generate_all.py --ref ../path/to/wuyongss.wav
 - **定时**：每周一 03:17 UTC 自动重生成。
 - **改代码即触发**：push 改动 `tts/**` 或 `listen-to-your-voice/ltyv_reference.wav` 时自动重生成。
 
-流程：checkout（带 GH_PAT）→ 装 CUDA torch + tts 依赖 → `download_models.py` 拉 F5TTS 权重 → `generate_all.py` 生成全部真实语音 → 提交并 push `audio/` 与 `listen-to-your-voice/`。push 仅改动这俩目录、不会再次触发本 workflow（路径不匹配），且会顺带触发 Pages 部署校验。
+流程：checkout（带 GH_PAT）→ 装 CUDA torch + tts 依赖 → `download_models.py` 拉 F5TTS 权重 → `generate_all.py` 生成全部真实语音（含 BOOKS 中的 24 本有声书 + 葬花吟）→ 提交并 push `audio/` 与 `listen-to-your-voice/`。push 仅改动这俩目录、不会再次触发本 workflow（路径不匹配），且会顺带触发 Pages 部署校验。
 
 ## 关键参数
 - `ref_text`：参考音频的字幕文本。若能提供 wuyongss.wav 的文字内容，克隆质量会明显更好；缺省留空也能克隆音色。
