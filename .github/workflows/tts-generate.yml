@@ -59,13 +59,33 @@ jobs:
             --nfe_step "${{ github.event.inputs.nfe_step || '32' }}"
 
       - name: Commit & push generated audio
+        id: push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add audio/ listen-to-your-voice/
           if git diff --cached --quiet; then
             echo "no audio changes; nothing to push"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git commit -m "chore(tts): regenerate real cloned voice via GPU runner"
           git push origin main
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      # 兜底同步：无论本工作流用的 GH_PAT 是否带 workflow 权限
+      # （带权限时上面 push 已触发 cloudflare 部署；不带时则不会），
+      # 这里都显式 dispatch 一次 cloudflare-pages-deploy，确保 tingbook.pages.dev 同步。
+      # 与 cloudflare-pages-deploy.yml 的 workflow_run 触发器并存时最多多一次部署，
+      # 其 concurrency 组会顺序执行，无害。
+      - name: Sync Cloudflare Pages (fallback dispatch)
+        if: ${{ steps.push.outputs.pushed == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          curl -fsSL -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/cloudflare-pages-deploy.yml/dispatches" \
+            -d '{"ref":"main"}'
+          echo "dispatched Cloudflare Pages deploy"
