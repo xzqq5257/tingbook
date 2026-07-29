@@ -43,28 +43,32 @@ jobs:
           echo "$html" | grep -q "wuyongss 音色试听" || { echo "MISSING: wuyongss 音色试听 section"; fail=1; }
           echo "$html" | grep -q "wuyongss_read_zanghuayin" || { echo "MISSING: wuyongss_read_zanghuayin reference"; fail=1; }
 
-          # 2) wuyongss 音频均可达，且葬花吟为完整大文件（>4MB，防 CDN 截断）
+          # 2) wuyongss 音频均可达，且葬花吟为完整大文件（>4MB，防 CDN 截断）。
+          #    演示 MP3 体积较小(~80-100KB)，阈值用 10000；wav 远大于此，安全。
           for f in wuyongss_demo_hum.mp3 wuyongss_demo_sing.mp3 wuyongss_read_zanghuayin.wav; do
             out=$(curl -s -o /dev/null -w "http=%{http_code} size=%{size_download}" "$BASE/wuyongss/$f")
             echo "$f -> $out"
             code=${out#http=}; code=${code%% *}
             sz=${out#*size=}
-            if [ "$code" != "200" ] || [ "${sz:-0}" -lt 100000 ]; then
+            if [ "$code" != "200" ] || [ "${sz:-0}" -lt 10000 ]; then
               echo "FAIL: $f not served correctly ($out)"; fail=1
             fi
           done
 
-          # 3) 葬花吟必须完整（110s @ 16bit/22.05k ≈ 4.85MB，阈值 4MB 防截断）
+          # 3) 葬花吟必须完整（110s @ 16bit/22.05k ≈ 4.86MB，阈值 4MB 防截断）
           zout=$(curl -s -o /dev/null -w "%{size_download}" "$BASE/wuyongss/wuyongss_read_zanghuayin.wav")
           echo "wuyongss_read_zanghuayin.wav size = $zout bytes"
           if [ "${zout:-0}" -lt 4000000 ]; then
             echo "FAIL: wuyongss_read_zanghuayin.wav appears truncated ($zout bytes)"; fail=1
           fi
 
-          # 4) 确认 23 本有声书已用 wuyongss 声纹覆盖上线（抽样若干本）
-          for b in "%E5%87%BA%E5%B8%88%E8%A1%A8.mp3" "%E6%B4%9B%E7%A5%9E%E8%B5%8B.mp3" "%E9%95%BF%E6%86%A8%E6%AD%8C.mp3"; do
-            out=$(curl -s -o /dev/null -w "http=%{http_code} size=%{size_download}" "$BASE/audio/$b")
-            echo "book $b -> $out"
+          # 4) 确认 23 本有声书已用 wuyongss 声纹覆盖上线（抽 3 本；
+          #    用 python 做正确的百分号编码，避免中文文件名编码错位导致 404）
+          books=("出师表.mp3" "洛神赋.mp3" "长恨歌.mp3")
+          for b in "${books[@]}"; do
+            enc=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$b")
+            out=$(curl -s -o /dev/null -w "http=%{http_code} size=%{size_download}" "$BASE/audio/$enc")
+            echo "book $b ($enc) -> $out"
             code=${out#http=}; code=${code%% *}
             sz=${out#*size=}
             if [ "$code" != "200" ] || [ "${sz:-0}" -lt 50000 ]; then
