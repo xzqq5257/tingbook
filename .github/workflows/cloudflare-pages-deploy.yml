@@ -1,0 +1,33 @@
+name: Cloudflare Pages Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Prevent the GitHub Pages validation + this deploy from tripping each other.
+concurrency:
+  group: cloudflare-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Deploy the repo root (index.html, audio/, listen-to-your-voice/, tts/) to
+      # the Cloudflare Pages project named "tingbook" (=> tingbook.pages.dev).
+      # Requires two repo secrets:
+      #   CLOUDFLARE_API_TOKEN  -> token with "Cloudflare Pages: Edit" permission
+      #   CLOUDFLARE_ACCOUNT_ID -> your Cloudflare account id
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy . --project-name=tingbook --branch=main --commit-dirty=true
