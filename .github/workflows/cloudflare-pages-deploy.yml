@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # 当「TTS Generate (GPU Runner)」工作流成功完成后，自动把生成的真实语音同步到
+  # Cloudflare Pages（tingbook.pages.dev）。
+  # 用 workflow_run 而非依赖 tts-generate 的 push 事件，好处是：即使 tts-generate
+  # 用的 PAT 没有 workflow 权限、其 push 不触发后续工作流，这里也必定会跑。
+  workflow_run:
+    workflows: ["TTS Generate (GPU Runner)"]
+    types: [completed]
 
 # Prevent the GitHub Pages validation + this deploy from tripping each other.
 concurrency:
@@ -15,10 +22,15 @@ permissions:
 
 jobs:
   deploy:
+    # 仅当触发源是「成功的 TTS 生成」时才部署，避免重跑/失败误部署
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout (latest main, includes freshly pushed audio)
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       # Deploy the repo root (index.html, audio/, listen-to-your-voice/, tts/) to
       # the Cloudflare Pages project named "tingbook" (=> tingbook.pages.dev).

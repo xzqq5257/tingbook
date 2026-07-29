@@ -1,7 +1,8 @@
 # TTS Generate (GPU Runner)
 # 在你自备的 GPU runner上，用 wuyongss 声纹（仓库内 listen-to-your-voice/ltyv_reference.wav）
 # 通过 F5-TTS 真实语音克隆，一键生成全部 23 本有声书 +《葬花吟》并自动推回仓库，
-# GitHub Pages 随即重新发布「真正可朗读」的 Listen To Your Voice 音频。
+# GitHub Pages 与 Cloudflare Pages（tingbook.pages.dev）随即重新发布「真正可朗读」的
+# Listen To Your Voice 音频（Cloudflare 侧由 cloudflare-pages-deploy.yml 经 workflow_run 监听本工作流完成事件自动触发）。
 name: TTS Generate (GPU Runner)
 
 on:
