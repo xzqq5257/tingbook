@@ -2,5 +2,6 @@ f5-tts
 modelscope
 soundfile
 numpy
-torch
-torchaudio
+imageio-ffmpeg
+# torch / torchaudio 不在此处固定：GPU runner 上由 tts-generate.yml 显式安装 CUDA 版，
+# 若此处写死会拉到 CPU 版覆盖掉 CUDA 构建。

@@ -38,6 +38,8 @@
   button.play-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px}
   .badge{background:#2a2f3a;border-radius:6px;padding:6px 10px;font-size:11px;color:var(--muted);
     text-decoration:none;display:inline-block;margin-left:6px;cursor:pointer}
+  button.del-btn{background:#3a2226;color:#ff8a8a;border:1px solid #5a2a30;border-radius:8px;padding:8px 11px;cursor:pointer;font-size:13px}
+  button.del-btn:hover{background:#4d2a30;color:#ffb3b3}
   #timer-label{color:var(--accent2);min-width:56px;font-variant-numeric:tabular-nums}
   #resume-card{display:none;border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset;margin:10px 14px}
   #resume-bar{position:fixed;left:0;right:0;bottom:0;background:#1a1d24;border-top:2px solid var(--accent2);
@@ -179,6 +181,7 @@
 </div>
 <div class="hint">封面秒开，点哪篇才加载哪篇音频（音频托管在 GitHub Pages，按需流式播放）。带同步字幕、倍速、定时关闭与断点续播。</div>
 <div id="list"></div>
+<div id="restore-row" style="display:none;margin:4px 14px 14px"><button id="restore-hidden" class="play-btn">♻ 恢复已删除条目</button></div>
 
 <div class="ltyv-section">
   <div class="ltyv-title">🎙 Listen To Your Voice</div>
@@ -450,6 +453,7 @@ function togglePlay(){ if(audio.paused) audio.play().catch(()=>{}); else audio.p
 function renderPlaylist(){
   const el=document.getElementById('pp-playlist'); el.innerHTML='';
   BOOKS.forEach((b,i)=>{
+    if(isHidden(b.file)) return;
     const d=document.createElement('div');
     d.className='pl-item'+(currentPlay.name===b.title?' active':'');
     d.textContent=(i+1)+'. '+b.title;
@@ -475,19 +479,37 @@ document.getElementById('rb-go').onclick = ()=>{ const p=resumeBar.dataset.prog;
 document.getElementById('rb-close').onclick = ()=>{ resumeBar.style.display='none'; };
 window.addEventListener('beforeunload', saveProgress);
 
+// ---------------- 我的听单：本地隐藏（删除）功能 ----------------
+// 说明：音频托管在 GitHub Pages（静态），浏览器无法真正删除服务器文件；
+// 这里做的是「从我的视图移除」，用 localStorage 持久化，刷新后仍保持。
+const HIDDEN_KEY = 'ltyv_hidden_files_v1';
+function loadHidden(){ try{ return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY)||'[]')); }catch(e){ return new Set(); } }
+function saveHidden(s){ try{ localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s])); }catch(e){} }
+let hiddenFiles = loadHidden();
+function isHidden(f){ return hiddenFiles.has(f); }
+function hideFile(f){ hiddenFiles.add(f); saveHidden(hiddenFiles); updateRestoreRow(); }
+function updateRestoreRow(){ const r=document.getElementById('restore-row'); if(r) r.style.display = hiddenFiles.size ? 'block' : 'none'; }
+function restoreAll(){ hiddenFiles.clear(); saveHidden(hiddenFiles); location.reload(); }
+const restoreBtn = document.getElementById('restore-hidden');
+if(restoreBtn) restoreBtn.onclick = restoreAll;
+updateRestoreRow();
+
 BOOKS.forEach((b,i)=>{
+  if(isHidden(b.file)) return;
   const card=document.createElement('div'); card.className='card';
   const dl = document.createElement('a');
   dl.className='badge'; dl.textContent='⬇ MP3'; dl.href=b.file; dl.setAttribute('download', b.title+'.mp3');
   card.innerHTML=`
     <div class="row">
       <div><div class="title">${i+1}. ${b.title}</div><div class="meta">时长 ${b.duration} 秒</div></div>
-      <div style="display:flex;align-items:center">
+      <div style="display:flex;align-items:center;gap:8px">
         <button class="play-btn">▶ 播放</button>
+        <button class="del-btn" title="从我的听单移除">🗑</button>
       </div>
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
   card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
+  card.querySelector('.del-btn').onclick=()=>{ if(confirm('从「我的听单」移除《'+b.title+'》？\n（仅隐藏显示，不会删除服务器上的音频；可在下方「恢复已删除条目」找回）')){ hideFile(b.file); card.remove(); } };
   listEl.appendChild(card);
 });
 
@@ -502,18 +524,21 @@ const LTYV = [
 ];
 const ltyvEl = document.getElementById('ltyv-list');
 LTYV.forEach((b,i)=>{
+  if(isHidden(b.file)) return;
   const card=document.createElement('div'); card.className='card';
   const dl=document.createElement('a');
   dl.className='badge'; dl.textContent='⬇ 试听文件'; dl.href=b.file; dl.setAttribute('download', b.title + (b.file.endsWith('.wav')?'.wav':'.mp3'));
   card.innerHTML=`
     <div class="row">
       <div><div class="title">🎙 ${b.title}</div><div class="meta">时长 ${b.duration} 秒 · Listen To Your Voice</div></div>
-      <div style="display:flex;align-items:center">
+      <div style="display:flex;align-items:center;gap:8px">
         <button class="play-btn">▶ 试听</button>
+        <button class="del-btn" title="从我的听单移除">🗑</button>
       </div>
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
   card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
+  card.querySelector('.del-btn').onclick=()=>{ if(confirm('从「我的听单」移除《'+b.title+'》？\n（仅隐藏显示，不会删除服务器上的音频）')){ hideFile(b.file); card.remove(); } };
   ltyvEl.appendChild(card);
 });
 

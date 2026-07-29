@@ -1,0 +1,70 @@
+# TTS Generate (GPU Runner)
+# 在你自备的 GPU runner上，用 wuyongss 声纹（仓库内 listen-to-your-voice/ltyv_reference.wav）
+# 通过 F5-TTS 真实语音克隆，一键生成全部 23 本有声书 +《葬花吟》并自动推回仓库，
+# GitHub Pages 随即重新发布「真正可朗读」的 Listen To Your Voice 音频。
+name: TTS Generate (GPU Runner)
+
+on:
+  # 手动触发（可填 nfe_step 推理步数）
+  workflow_dispatch:
+    inputs:
+      nfe_step:
+        description: "F5-TTS 推理步数（越大越慢越稳，默认 32）"
+        required: false
+        default: "32"
+  # 每周一 03:17 UTC 自动重生成（例如模型/参考音更新后保持同步）
+  schedule:
+    - cron: "17 3 * * 1"
+  # 改了 tts/ 管线或参考音时自动重生成
+  push:
+    paths:
+      - "tts/**"
+      - "listen-to-your-voice/ltyv_reference.wav"
+
+permissions:
+  contents: write   # 推送用 secrets.GH_PAT；此处为 GITHUB_TOKEN 兜底
+
+jobs:
+  generate:
+    # ↓↓↓ 改成你自备 GPU runner 的 label（在 runner 配置里看到的那些）↓↓↓
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 360
+    steps:
+      - name: Checkout (with push token)
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CUDA torch + TTS deps
+        run: |
+          python -m pip install --upgrade pip
+          # 显式安装 CUDA 版 torch/torchaudio（requirements.txt 里不含，避免拉到 CPU 版）
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+          pip install -r tts/requirements.txt
+
+      - name: Download models (F5TTS via ModelScope; vocos vocoder 首次运行自动从 HF 拉取)
+        run: python tts/download_models.py
+
+      - name: Generate real cloned voice (23 books + 葬花吟)
+        run: |
+          python tts/generate_all.py \
+            --ref listen-to-your-voice/ltyv_reference.wav \
+            --nfe_step "${{ github.event.inputs.nfe_step || '32' }}"
+
+      - name: Commit & push generated audio
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add audio/ listen-to-your-voice/
+          if git diff --cached --quiet; then
+            echo "no audio changes; nothing to push"
+            exit 0
+          fi
+          git commit -m "chore(tts): regenerate real cloned voice via GPU runner"
+          git push origin main

@@ -30,6 +30,22 @@ python generate_all.py --ref ../path/to/wuyongss.wav
 如需更高拟真度，可改用 GPT-SoVITS：用 `wuyongss.wav` 作为参考音频，运行其 few-shot 推理，
 输出同样的文件名（`listen-to-your-voice/ltyv_read_zanghuayin.wav`、`audio/<书名>.mp3`）即可无缝替换。
 
+## 自动生成（GitHub Actions · 自备 GPU Runner）
+
+仓库已内置 `.github/workflows/tts-generate.yml`：在你**自备的 GPU runner** 上自动跑真实语音克隆并把生成的音频推回仓库，GitHub Pages 随即重新发布。
+
+前置条件（一次性）：
+1. 在仓库 **Settings → Actions → Runners** 添加一个 **self-hosted runner**，机器需具备 **NVIDIA GPU + CUDA + 可访问 HuggingFace / ModelScope 的网络**。
+2. 把 runner 的 label 配成 `gpu`（或把 workflow 里的 `runs-on: [self-hosted, gpu]` 改成你的 label）。
+3. 仓库 **Settings → Secrets → Actions** 新增 `GH_PAT`：一个有 `repo` 写权限的 Personal Access Token（用于把生成的音频推回 main）。
+
+触发方式：
+- **手动**：Actions 页面选 `TTS Generate (GPU Runner)` → Run workflow（可填 `nfe_step`）。
+- **定时**：每周一 03:17 UTC 自动重生成。
+- **改代码即触发**：push 改动 `tts/**` 或 `listen-to-your-voice/ltyv_reference.wav` 时自动重生成。
+
+流程：checkout（带 GH_PAT）→ 装 CUDA torch + tts 依赖 → `download_models.py` 拉 F5TTS 权重 → `generate_all.py` 生成全部真实语音 → 提交并 push `audio/` 与 `listen-to-your-voice/`。push 仅改动这俩目录、不会再次触发本 workflow（路径不匹配），且会顺带触发 Pages 部署校验。
+
 ## 关键参数
 - `ref_text`：参考音频的字幕文本。若能提供 wuyongss.wav 的文字内容，克隆质量会明显更好；缺省留空也能克隆音色。
 - `nfe_step`：推理步数（默认 32，越大越慢越稳）。
