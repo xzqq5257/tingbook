@@ -185,11 +185,15 @@
 <div class="hint">封面秒开，点哪篇才加载哪篇音频（音频托管在 GitHub Pages，按需流式播放）。带同步字幕、倍速、定时关闭与断点续播。</div>
 <div class="ltyv-section" id="ting-wo-du">
   <div class="ltyv-title">🗣 听我读 · 即输即读</div>
-  <div class="ltyv-desc">输入任意文字，或输入篇名（如「将进酒」「朗读 岳阳楼记」），AI 自动识别后用浏览器内置中文语音即时朗读。无需后端、零等待。<b>注意：</b>浏览器内置语音为非克隆音色；若要换成你的克隆音色，请用上方「🎙 一键换声」上传参考音后，本地运行 <code>tts/generate_all.py</code> 重生成。</div>
+  <div class="ltyv-desc">输入任意文字，或输入篇名（如「将进酒」「朗读 岳阳楼记」），AI 自动识别后用中文语音朗读。<b>🖥 系统嗓音</b>：浏览器内置语音，零延迟；<b>🎙 克隆音</b>：调用 F5-TTS 用你的参考音（listen-to-your-voice/ltyv_reference.wav）实时合成，真正克隆音色。克隆音需后台已部署 F5 服务，若未配置会自动退回系统嗓音。</div>
   <div style="margin-top:10px">
     <textarea id="ting-input" class="inp" rows="3" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="例如：朗读《将进酒》  或  直接粘贴你想听的文字…"></textarea>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
-      <select id="ting-voice" class="inp" style="min-width:200px"></select>
+      <div style="display:inline-flex;border:1px solid #cbb892;border-radius:8px;overflow:hidden">
+        <button id="ting-mode-system" class="mode-btn" style="border:0;background:#b8902f;color:#fff">🖥 系统嗓音</button>
+        <button id="ting-mode-clone" class="mode-btn" style="border:0;border-left:1px solid #cbb892;background:transparent;color:#5b4a2a">🎙 克隆音</button>
+      </div>
+      <select id="ting-voice" class="inp" style="min-width:160px"></select>
       <button id="ting-play" class="play-btn">🔊 朗读</button>
       <button id="ting-stop" class="badge">⏹ 停止</button>
       <span id="ting-status" class="meta"></span>
@@ -760,8 +764,60 @@ function tingSpeak(){
   speechSynthesis.speak(u);
   tingStatus.textContent = label + ' · 朗读中…';
 }
-function tingStop(){ try{ speechSynthesis.cancel(); }catch(e){} tingStatus.textContent='已停止'; }
-document.getElementById('ting-play').onclick = tingSpeak;
+function tingStop(){ try{ speechSynthesis.cancel(); }catch(e){} try{ if(window.__tingAudio){ window.__tingAudio.pause(); window.__tingAudio = null; } }catch(e){} tingStatus.textContent='已停止'; }
+
+// ---------------- 克隆音模式：调用 /api/ting-read（后端 F5-TTS） ----------------
+async function tingCloneSpeak(){
+  const raw = (tingInput.value || '').trim();
+  if(!raw){ tingStatus.textContent='请先输入文字或篇名'; return; }
+  const { text, label } = resolveTingText(raw);
+  tingStatus.textContent = label + ' · 正在用克隆音色合成…';
+  try{
+    const resp = await fetch('/api/ting-read', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify({ text, nfe_step:16 })
+    });
+    if(!resp.ok){
+      let msg='';
+      try{ const j = await resp.json(); msg = j.error || ''; }catch(e){}
+      throw new Error(msg || ('HTTP '+resp.status));
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    window.__tingAudio = audio;
+    audio.onended = ()=>{ tingStatus.textContent = label + ' · 朗读结束'; URL.revokeObjectURL(url); window.__tingAudio = null; };
+    audio.onerror = ()=>{ tingStatus.textContent = label + ' · 播放出错'; URL.revokeObjectURL(url); window.__tingAudio = null; };
+    await audio.play();
+    tingStatus.textContent = label + ' · 克隆音朗读中…';
+  }catch(e){
+    tingStatus.textContent = '克隆音暂不可用（' + e.message + '），已退回系统嗓音';
+    if('speechSynthesis' in window){
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const vs = speechSynthesis.getVoices();
+      const pick = vs.find(v=>v.voiceURI===tingVoice.value) || vs.find(v=>/zh|cmn|Chinese|Yue|Han/i.test(v.lang)) || vs[0];
+      if(pick){ u.voice = pick; u.lang = pick.lang; }
+      speechSynthesis.speak(u);
+    }
+  }
+}
+
+// ---------------- 模式切换 ----------------
+let tingMode = 'system';
+function setTingMode(m){
+  tingMode = m;
+  const sys = document.getElementById('ting-mode-system');
+  const cl = document.getElementById('ting-mode-clone');
+  sys.style.background = m==='system' ? '#b8902f' : 'transparent';
+  sys.style.color = m==='system' ? '#fff' : '#5b4a2a';
+  cl.style.background = m==='clone' ? '#b8902f' : 'transparent';
+  cl.style.color = m==='clone' ? '#fff' : '#5b4a2a';
+}
+document.getElementById('ting-mode-system').onclick = ()=>setTingMode('system');
+document.getElementById('ting-mode-clone').onclick = ()=>setTingMode('clone');
+document.getElementById('ting-play').onclick = ()=>{ if(tingMode==='clone') tingCloneSpeak(); else tingSpeak(); };
 document.getElementById('ting-stop').onclick = tingStop;
 
 
