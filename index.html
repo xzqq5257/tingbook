@@ -438,8 +438,20 @@ audio.addEventListener('play', ()=>{ document.getElementById('pp-play').textCont
 audio.addEventListener('ended', ()=>{
   document.getElementById('pp-play').textContent='▶';
   if(loopMode==='one'){ audio.currentTime=0; audio.play().catch(()=>{}); return; }
+  if(loopMode==='all'){
+    const list = (playingAll && playlist.length) ? playlist : BOOKS;
+    let idx = (playingAll && playlist.length) ? plIndex : BOOKS.findIndex(b => b.file === currentPlay.file);
+    if(idx < 0) idx = 0;
+    const n = (idx + 1) % list.length;            // 列表循环：播完自动跳下一篇，末尾回第 1 篇
+    playlist = (playingAll && playlist.length) ? playlist : BOOKS.slice();
+    playingAll = true;
+    document.getElementById('play-all').style.display='none';
+    document.getElementById('stop-all').style.display='';
+    plIndex = n;
+    playItem(n);
+    return;
+  }
   if(playingAll && plIndex<playlist.length-1){ playItem(plIndex+1); return; }
-  if(loopMode==='all' && playingAll){ playItem(0); return; }
   clearProgress();
   resumeBar.dataset.prog=''; showResume(null);
   if(playingAll){
@@ -497,8 +509,22 @@ function renderPlaylist(){
   });
 }
 document.getElementById('pp-play').onclick=togglePlay;
-document.getElementById('pp-prev').onclick=()=>{ if(playingAll && plIndex>0) playItem(plIndex-1); };
-document.getElementById('pp-next').onclick=()=>{ if(playingAll && plIndex<playlist.length-1) playItem(plIndex+1); };
+function currentBookIndex(){
+  if(playingAll && playlist.length) return plIndex;
+  return BOOKS.findIndex(b => b.file === currentPlay.file);
+}
+function stepTrack(dir){
+  let list, i;
+  if(playingAll && playlist.length){ list = playlist; i = plIndex; }
+  else { list = BOOKS; i = BOOKS.findIndex(b => b.file === currentPlay.file); playlist = BOOKS.slice(); }
+  if(i < 0) return;
+  const j = i + dir;
+  if(j < 0 || j >= list.length) return;     // 手动切歌边界不环绕
+  plIndex = j;
+  playItem(j);
+}
+document.getElementById('pp-prev').onclick=()=>stepTrack(-1);
+document.getElementById('pp-next').onclick=()=>stepTrack(1);
 document.getElementById('pp-back').onclick=()=>hidePlayerPage();
 document.getElementById('pp-list-toggle').onclick=()=>{ renderPlaylist(); document.getElementById('pp-playlist').classList.toggle('show'); };
 document.getElementById('pp-seek').addEventListener('input', ()=>{ if(audio.duration) audio.currentTime=(ppSeek.value/1000)*audio.duration; });
