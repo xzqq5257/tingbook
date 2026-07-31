@@ -459,10 +459,10 @@ audio.addEventListener('ended', ()=>{
     document.getElementById('play-all').style.display='none';
     document.getElementById('stop-all').style.display='';
     plIndex = n;
-    playItem(n);
+    playItem(n, 'start');
     return;
   }
-  if(playingAll && plIndex<playlist.length-1){ playItem(plIndex+1); return; }
+  if(playingAll && plIndex<playlist.length-1){ playItem(plIndex+1, 'start'); return; }
   clearProgress(); clearPos(currentPlay.file||currentPlay.url);
   resumeBar.dataset.prog=''; showResume(null);
   if(playingAll){
@@ -474,20 +474,21 @@ audio.addEventListener('ended', ()=>{
   document.querySelectorAll('#list .card.playing').forEach(c=>c.classList.remove('playing'));
 });
 
-function playItem(i){
+function playItem(i, mode){
   if(i<0||i>=playlist.length) return;
   plIndex=i; const b=playlist[i];
   document.querySelectorAll('#list .card').forEach((c,j)=>{
     c.classList.toggle('playing', BOOKS[j] && BOOKS[j].title===b.title);
   });
   document.getElementById('playing-all-status').textContent=`正在播放 ${i+1}/${playlist.length}：${b.title}`;
-  playBook(b);
+  // mode='start' -> 从头播；'resume'(默认) -> 续播上次位置
+  playBook(b, mode==='start' ? 0 : undefined);
 }
 function playAll(){
   playlist=BOOKS.slice(); playingAll=true; plIndex=0;
   document.getElementById('play-all').style.display='none';
   document.getElementById('stop-all').style.display='';
-  playItem(0);
+  playItem(0, 'start');
 }
 function stopAll(){
   playingAll=false; playlist=[]; plIndex=-1; audio.pause();
@@ -515,7 +516,7 @@ function renderPlaylist(){
       document.getElementById('play-all').style.display='none';
       document.getElementById('stop-all').style.display='';
       document.getElementById('playing-all-status').textContent=`正在播放 ${i+1}/${BOOKS.length}：${b.title}`;
-      playBook(b); document.getElementById('pp-playlist').classList.remove('show'); };
+      playBook(b, 0); document.getElementById('pp-playlist').classList.remove('show'); };
     el.appendChild(d);
   });
 }
@@ -524,7 +525,7 @@ function currentBookIndex(){
   if(playingAll && playlist.length) return plIndex;
   return BOOKS.findIndex(b => b.file === currentPlay.file);
 }
-function stepTrack(dir){
+function stepTrack(dir, mode){
   let list, i;
   if(playingAll && playlist.length){ list = playlist; i = plIndex; }
   else { list = BOOKS; i = BOOKS.findIndex(b => b.file === currentPlay.file); playlist = BOOKS.slice(); }
@@ -532,10 +533,10 @@ function stepTrack(dir){
   const j = i + dir;
   if(j < 0 || j >= list.length) return;     // 手动切歌边界不环绕
   plIndex = j;
-  playItem(j);
+  playItem(j, mode || 'resume');   // 上一篇/下一篇默认续播上次位置
 }
-document.getElementById('pp-prev').onclick=()=>stepTrack(-1);
-document.getElementById('pp-next').onclick=()=>stepTrack(1);
+document.getElementById('pp-prev').onclick=()=>stepTrack(-1, 'resume');
+document.getElementById('pp-next').onclick=()=>stepTrack(1, 'resume');
 function restartCurrent(){
   const b = (playingAll && playlist.length) ? playlist[plIndex] : BOOKS[currentBookIndex()];
   const f = (b && (b.file||b.audio||b.url)) || currentPlay.file || currentPlay.url;
@@ -569,9 +570,9 @@ document.getElementById('rb-go').onclick = ()=>{ const p=resumeBar.dataset.prog;
 document.getElementById('rb-close').onclick = ()=>{ resumeBar.style.display='none'; };
 window.addEventListener('beforeunload', saveProgress);
 
-// ---------------- 我的听单：本地隐藏（删除）功能 ----------------
-// 说明：音频托管在 GitHub Pages（静态），浏览器无法真正删除服务器文件；
-// 这里做的是「从我的视图移除」，用 localStorage 持久化，刷新后仍保持。
+// ---------------- 我的听单：删除功能（同步删除 GitHub 仓库文件） ----------------
+// 说明：点击删除会调用后台 /api/delete（Cloudflare Pages Function），真正从 GitHub 仓库
+// 删除音频文件并从 index.html 的 BOOKS 中移除条目；成功后本地视图才隐藏。
 const HIDDEN_KEY = 'ltyv_hidden_files_v1';
 function loadHidden(){ try{ return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY)||'[]')); }catch(e){ return new Set(); } }
 function saveHidden(s){ try{ localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s])); }catch(e){} }
@@ -607,12 +608,12 @@ BOOKS.forEach((b,i)=>{
       </div>
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
-  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b); };
+  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
   card.querySelector('.del-btn').onclick=async ()=>{
     if(!confirm('永久删除《'+b.title+'》？\n这将从服务器删除音频并移除播放条目，且无法撤销。')) return;
-    hideFile(b.file); card.remove();  // 本地即时反馈
-    const ok = await deleteBackend(b.file);
-    if(!ok) alert('后台删除失败：仅本地隐藏。可稍后重试，或到仓库手动删除。');
+    const ok = await deleteBackend(b.file);   // 先同步删除 GitHub 仓库文件
+    if(ok){ hideFile(b.file); card.remove(); } // 成功后再隐藏本地视图
+    else alert('后台删除失败：未删除服务器文件。可稍后重试，或到仓库手动删除。');
   };
   listEl.appendChild(card);
 });
@@ -641,12 +642,12 @@ LTYV.forEach((b,i)=>{
       </div>
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
-  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b); };
+  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
   card.querySelector('.del-btn').onclick=async ()=>{
     if(!confirm('永久删除《'+b.title+'》？\n这将从服务器删除音频并移除播放条目，且无法撤销。')) return;
-    hideFile(b.file); card.remove();  // 本地即时反馈
-    const ok = await deleteBackend(b.file);
-    if(!ok) alert('后台删除失败：仅本地隐藏。可稍后重试，或到仓库手动删除。');
+    const ok = await deleteBackend(b.file);   // 先同步删除 GitHub 仓库文件
+    if(ok){ hideFile(b.file); card.remove(); } // 成功后再隐藏本地视图
+    else alert('后台删除失败：未删除服务器文件。可稍后重试，或到仓库手动删除。');
   };
   ltyvEl.appendChild(card);
 });
@@ -662,7 +663,7 @@ function shufflePlay(){
   document.getElementById('play-all').style.display='none';
   document.getElementById('stop-all').style.display='';
   document.getElementById('playing-all-status').textContent='🔀 随机播放中';
-  playItem(0);
+  playItem(0, 'start');
 }
 document.getElementById('shuffle-all').onclick=shufflePlay;
 
