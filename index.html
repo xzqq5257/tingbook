@@ -163,7 +163,7 @@
   <button id="stop-all" class="ghost" style="display:none">⏹ 停止</button>
   <button id="voice-swap" class="ghost">🎙 一键换声</button>
   <button id="poly-btn" class="ghost">📝 多音字校准</button>
-  <input id="voice-file" type="file" accept="video/*,audio/*,.wav,.mp3,.m4a,.flac,.ogg" style="display:none"/>
+  <input id="voice-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg" style="display:none" title="上传一段清晰的人声作为后续朗读的参考音"/>
   <button id="now-playing" class="ghost" style="display:none">🎵 正在播放</button>
   <span class="playing-all" id="playing-all-status"></span>
 </div>
@@ -183,6 +183,20 @@
   <div style="margin-top:8px"><button id="poly-save" class="play-btn">💾 保存规则</button><span id="poly-msg" class="meta" style="margin-left:8px"></span></div>
 </div>
 <div class="hint">封面秒开，点哪篇才加载哪篇音频（音频托管在 GitHub Pages，按需流式播放）。带同步字幕、倍速、定时关闭与断点续播。</div>
+<div class="ltyv-section" id="ting-wo-du">
+  <div class="ltyv-title">🗣 听我读 · 即输即读</div>
+  <div class="ltyv-desc">输入任意文字，或输入篇名（如「将进酒」「朗读 岳阳楼记」），AI 自动识别后用浏览器内置中文语音即时朗读。无需后端、零等待。<b>注意：</b>浏览器内置语音为非克隆音色；若要换成你的克隆音色，请用上方「🎙 一键换声」上传参考音后，本地运行 <code>tts/generate_all.py</code> 重生成。</div>
+  <div style="margin-top:10px">
+    <textarea id="ting-input" class="inp" rows="3" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="例如：朗读《将进酒》  或  直接粘贴你想听的文字…"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+      <select id="ting-voice" class="inp" style="min-width:200px"></select>
+      <button id="ting-play" class="play-btn">🔊 朗读</button>
+      <button id="ting-stop" class="badge">⏹ 停止</button>
+      <span id="ting-status" class="meta"></span>
+    </div>
+  </div>
+</div>
+
 <div id="list"></div>
 <div id="restore-row" style="display:none;margin:4px 14px 14px"><button id="restore-hidden" class="play-btn">♻ 恢复已删除条目</button></div>
 
@@ -622,7 +636,11 @@ BOOKS.forEach((b,i)=>{
 const LTYV = [
   { title:"Listen To Your Voice · 原声试听", duration:13,
     text:"（wuyongss 原始参考音频，即被克隆的真实声音）",
-    file:"listen-to-your-voice/ltyv_reference.wav" }];
+    file:"listen-to-your-voice/ltyv_reference.wav" },
+  { title:"Listen To Your Voice 演示 ·《葬花吟》(参数化)", duration:110,
+    text:"花谢花飞花满天，红消香断有谁怜。\n游丝软系飘春榭，落絮轻沾扑绣帘。\n闺中女儿惜春暮，愁绪满怀无释处。\n手把花锄出绣帘，忍踏落花来复去。\n柳丝榆荚自芳菲，不管桃飘与李飞。\n桃李明年能再发，明年闺中知有谁？\n三月香巢已垒成，梁间燕子太无情！\n明年花发虽可啄，却不道人去梁空巢也倾。\n一年三百六十日，风刀霜剑严相逼。\n明媚鲜妍能几时，一朝飘泊难寻觅。\n花开易见落难寻，阶前闷杀葬花人。\n独倚花锄泪暗洒，洒上空枝见血痕。\n杜鹃无语正黄昏，荷锄归去掩重门。\n青灯照壁人初睡，冷雨敲窗被未温。\n怪奴底事倍伤神，半为怜春半恼春。\n怜春忽至恼忽去，至又无言去不闻。\n昨宵庭外悲歌发，知是花魂与鸟魂？\n花魂鸟魂总难留，鸟自无言花自羞。\n愿奴胁下生双翼，随花飞到天尽头！\n天尽头，何处有香丘？\n未若锦囊收艳骨，一抔净土掩风流。\n质本洁来还洁去，强于污淖陷渠沟。\n尔今死去侬收葬，未卜侬身何日丧？\n侬今葬花人笑痴，他年葬侬知是谁？\n试看春残花渐落，便是红颜老死时。\n一朝春尽红颜老，花落人亡两不知！",
+    file:"listen-to-your-voice/ltyv_read_zanghuayin.wav" }
+];
 const ltyvEl = document.getElementById('ltyv-list');
 LTYV.forEach((b,i)=>{
   if(isHidden(b.file)) return;
@@ -669,16 +687,83 @@ document.getElementById('voice-swap').onclick=()=>voiceFile.click();
 voiceFile.onchange=async ()=>{
   const f=voiceFile.files[0]; if(!f) return;
   const st=document.getElementById('playing-all-status');
-  st.textContent='🎙 正在提取人声…';
+  st.textContent='🎙 正在上传参考音…';
   try{
     const fd=new FormData(); fd.append('file', f);
-    const r=await fetch('/api/voice-source',{method:'POST',body:fd});
-    const j=await r.json();
-    if(r.ok && j.status==='ok') st.textContent='✅ 换声成功（参考音 '+fmtTime(j.duration)+'）';
-    else st.textContent='❌ '+(j.detail||j.error||'换声失败');
+    const r=await fetch('/api/voice-source',{method:'POST',headers:{'x-admin-key':'ltyv-del-2026'},body:fd});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok && j.status==='ok'){
+      const dur = j.duration ? ('（参考音 '+fmtTime(j.duration)+'）') : '（参考音已更新）';
+      st.textContent='✅ 换声成功'+dur+' — 原声试听将更新；重生成全部请本地运行 tts/generate_all.py';
+    } else if(r.status===401){ st.textContent='❌ 鉴权失败（x-admin-key 不匹配）'; }
+    else st.textContent='❌ '+(j.error||'换声失败');
   }catch(e){ st.textContent='❌ 上传失败，请重试'; }
   voiceFile.value='';
 };
+
+// ---------------- 听我读（浏览器内置 TTS，纯前端） ----------------
+const tingInput = document.getElementById('ting-input');
+const tingVoice = document.getElementById('ting-voice');
+const tingStatus = document.getElementById('ting-status');
+
+function loadTingVoices(){
+  try{
+    const vs = speechSynthesis.getVoices();
+    tingVoice.innerHTML = '';
+    const zh = vs.filter(v => /zh|cmn|Chinese|Yue|Han/i.test(v.lang));
+    const list = zh.length ? zh : vs;
+    list.forEach((v)=>{
+      const o = document.createElement('option');
+      o.value = v.voiceURI; o.textContent = v.name + ' (' + v.lang + ')';
+      tingVoice.appendChild(o);
+    });
+    if(!zh.length) tingStatus.textContent = '提示：当前浏览器无中文语音，将用默认嗓音';
+  }catch(e){}
+}
+if ('speechSynthesis' in window){
+  loadTingVoices();
+  speechSynthesis.onvoiceschanged = loadTingVoices;
+} else {
+  tingStatus.textContent = '当前浏览器不支持语音合成';
+}
+
+// AI 自动识别：匹配 BOOKS 篇名；命中则朗读该篇全文，否则朗读原文
+function normalize(s){ return (s||'').replace(/[\s""''《》<>【】()（）.,，。、！？!?：:；;]/g,'').toLowerCase(); }
+function resolveTingText(raw){
+  const q = normalize(raw);
+  if(!q) return { text: raw, label: '自由文本' };
+  let best = null, bestScore = 0;
+  for(const b of BOOKS){
+    const t = normalize(b.title);
+    let score = 0;
+    if(q.includes(t) || t.includes(q)) score = Math.max(q.length, t.length);
+    else { const set = new Set(t); let hit = 0; for(const c of q) if(set.has(c)) hit++; score = hit; }
+    if(score > bestScore){ bestScore = score; best = b; }
+  }
+  if(best && bestScore >= 2) return { text: best.text, label: '识别为：《' + best.title + '》' };
+  return { text: raw, label: '自由文本' };
+}
+
+function tingSpeak(){
+  if(!('speechSynthesis' in window)){ tingStatus.textContent='浏览器不支持语音合成'; return; }
+  const raw = (tingInput.value || '').trim();
+  if(!raw){ tingStatus.textContent='请先输入文字或篇名'; return; }
+  const { text, label } = resolveTingText(raw);
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const vs = speechSynthesis.getVoices();
+  const pick = vs.find(v=>v.voiceURI===tingVoice.value) || vs.find(v=>/zh|cmn|Chinese|Yue|Han/i.test(v.lang)) || vs[0];
+  if(pick){ u.voice = pick; u.lang = pick.lang; }
+  u.rate = 1; u.pitch = 1;
+  u.onend = ()=>{ tingStatus.textContent = label + ' · 朗读结束'; };
+  u.onerror = ()=>{ tingStatus.textContent = label + ' · 朗读出错'; };
+  speechSynthesis.speak(u);
+  tingStatus.textContent = label + ' · 朗读中…';
+}
+function tingStop(){ try{ speechSynthesis.cancel(); }catch(e){} tingStatus.textContent='已停止'; }
+document.getElementById('ting-play').onclick = tingSpeak;
+document.getElementById('ting-stop').onclick = tingStop;
+
 
 // ---------------- 多音字校准 ----------------
 let polyRules=[];
