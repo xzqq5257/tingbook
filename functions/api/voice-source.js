@@ -7,6 +7,8 @@
 //   REPO_OWNER    xzqq5257
 //   REPO_NAME     tingbook
 //   ADMIN_KEY     与前端一致的暗号（默认 ltyv-del-2026）
+//   F5_TTS_URL    可选：HF Space 的 F5 克隆音服务地址。配置后，上传参考音成功会自动
+//                 调用该服务的 /refresh-ref，让「一键换声」一次到位（无需手动重启服务）。
 
 const API = "https://api.github.com";
 
@@ -121,5 +123,23 @@ export async function onRequestPost(context) {
   }
 
   const dur = wavDuration(buf);
-  return json({ status: "ok", duration: dur, size: file.size });
+
+  // 若配置了 F5 服务地址，成功写入后自动通知其刷新参考音（换声一次到位）。
+  // 此为尽力而为：通知失败不影响本次上传成功。
+  let hfRefreshed = null;
+  const f5url = (env.F5_TTS_URL && env.F5_TTS_URL.trim()) || "";
+  if (f5url) {
+    try {
+      const r = await fetch(f5url.replace(/\/+$/, "") + "/refresh-ref", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      });
+      const b = await r.json().catch(() => ({}));
+      hfRefreshed = !!(r.ok && b.ok);
+    } catch (e) {
+      hfRefreshed = false; // 通知失败不阻断上传成功
+    }
+  }
+
+  return json({ status: "ok", duration: dur, size: file.size, hfRefreshed });
 }
