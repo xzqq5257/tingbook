@@ -39,6 +39,10 @@ short_description: F5-TTS 克隆音推理服务，供 tingbook「听我读·克�
 ## 换声（修改后续朗读参考音）
 1. 在 tingbook 网页用「🎙 一键换声」上传新参考音 → 该文件会写入 GitHub 仓库
    `listen-to-your-voice/ltyv_reference.wav`。
-2. 调用本服务的 `POST /refresh-ref`（或重启 Space）拉取最新参考音，克隆音色即更新。
+2. 若 Cloudflare 已配置 `F5_TTS_URL`，上传成功后会**自动**调用本服务的 `POST /refresh-ref`，
+   拉取最新参考音，克隆音色即更新（一次到位，无需手动重启）。
+3. 若未配置自动刷新，可手动调用 `POST /refresh-ref`（或在 HF 重启 Space）触发。
+
+> 参考音优先经 GitHub API 拉取（无 raw CDN 缓存），换声后通常数秒内即可生效。
 
 > 模型权重（F5TTS_Base 约 1.3GB）与 vocoder 在首次启动时自动下载，之后由 HF 缓存复用。
