@@ -1,0 +1,4 @@
+# F5-TTS 运行时依赖（自动带入 torch / soundfile / numpy）
+f5-tts
+numpy
+soundfile
