@@ -79,6 +79,7 @@
   .pp-btns{display:flex;justify-content:center;align-items:center;gap:26px}
   .pp-btns button{background:var(--accent);color:#fff;border:none;border-radius:50%;width:50px;height:50px;font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center}
   .pp-btns #pp-play{width:60px;height:60px;font-size:24px}
+  .pp-btns #pp-restart{width:42px;height:42px;font-size:17px;background:transparent;border:1px solid var(--accent);color:var(--accent)}
   .pp-extra{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
   .pp-extra select{background:#1a1d24;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:13px}
   #player-page audio{display:none}
@@ -208,6 +209,7 @@
       <button id="pp-prev" title="上一首">⏮</button>
       <button id="pp-play" title="播放/暂停">⏸</button>
       <button id="pp-next" title="下一首">⏭</button>
+      <button id="pp-restart" title="从头播放（清空本篇续播进度）">↺</button>
     </div>
     <div class="pp-extra">
       <label>倍速<select id="pp-speed">
@@ -284,6 +286,13 @@ async function clearProgress(){
   try{ localStorage.removeItem(PROGRESS_KEY); }catch(e){}
   await _idb.set(PROGRESS_KEY, null);
 }
+// ---- 按篇记忆播放位置（用于上一篇/下一篇续播）----
+const POS_KEY = 'tingbook_positions_v1';
+function loadPositions(){ try{ return JSON.parse(localStorage.getItem(POS_KEY)||'{}'); }catch(e){ return {}; } }
+function savePositions(p){ try{ localStorage.setItem(POS_KEY, JSON.stringify(p)); }catch(e){} }
+function setPos(file, t){ if(!file) return; const p=loadPositions(); p[file]=Math.max(0, Math.floor(t||0)); savePositions(p); }
+function getPos(file){ if(!file) return 0; const p=loadPositions(); const v=p[file]; return (typeof v==='number' && v>0) ? v : 0; }
+function clearPos(file){ if(!file) return; const p=loadPositions(); delete p[file]; savePositions(p); }
 function applySpeed(){
   const v = parseFloat(document.getElementById('pp-speed').value) || 1;
   audio.playbackRate = v;
@@ -398,6 +407,8 @@ function hidePlayerPage(){ playerPage.classList.remove('show'); }
 function hideResumeBars(){ resumeBar.style.display='none'; const rc=document.getElementById('resume-card'); if(rc) rc.style.display='none'; }
 function updateNowPlaying(){ const np=document.getElementById('now-playing'); if(currentPlay.name){ np.style.display=''; np.textContent='🎵 '+currentPlay.name; } }
 function playBook(b, startTime){
+  const _f = b.file || b.audio || b.url;
+  if(startTime === undefined) startTime = getPos(_f);   // 未显式指定起点 -> 续播该篇上次位置
   startTime = startTime || 0;
   const cb=document.getElementById('continue-all'); if(cb) cb.style.display='none';
   continueProg=null;
@@ -431,9 +442,9 @@ audio.addEventListener('timeupdate', ()=>{
     highlight(idx);
   }
   const now=Date.now();
-  if(now-lastSave>3000 && (currentPlay.file||currentPlay.url)){ lastSave=now; saveProgress(); }
+  if(now-lastSave>3000 && (currentPlay.file||currentPlay.url)){ lastSave=now; saveProgress(); setPos(currentPlay.file||currentPlay.url, audio.currentTime); }
 });
-audio.addEventListener('pause', ()=>{ document.getElementById('pp-play').textContent='▶'; saveProgress(); updateResumeBar(); });
+audio.addEventListener('pause', ()=>{ document.getElementById('pp-play').textContent='▶'; saveProgress(); updateResumeBar(); setPos(currentPlay.file||currentPlay.url, audio.currentTime); });
 audio.addEventListener('play', ()=>{ document.getElementById('pp-play').textContent='⏸'; });
 audio.addEventListener('ended', ()=>{
   document.getElementById('pp-play').textContent='▶';
@@ -452,7 +463,7 @@ audio.addEventListener('ended', ()=>{
     return;
   }
   if(playingAll && plIndex<playlist.length-1){ playItem(plIndex+1); return; }
-  clearProgress();
+  clearProgress(); clearPos(currentPlay.file||currentPlay.url);
   resumeBar.dataset.prog=''; showResume(null);
   if(playingAll){
     playingAll=false;
@@ -470,7 +481,7 @@ function playItem(i){
     c.classList.toggle('playing', BOOKS[j] && BOOKS[j].title===b.title);
   });
   document.getElementById('playing-all-status').textContent=`正在播放 ${i+1}/${playlist.length}：${b.title}`;
-  playBook(b, 0);
+  playBook(b);
 }
 function playAll(){
   playlist=BOOKS.slice(); playingAll=true; plIndex=0;
@@ -504,7 +515,7 @@ function renderPlaylist(){
       document.getElementById('play-all').style.display='none';
       document.getElementById('stop-all').style.display='';
       document.getElementById('playing-all-status').textContent=`正在播放 ${i+1}/${BOOKS.length}：${b.title}`;
-      playBook(b,0); document.getElementById('pp-playlist').classList.remove('show'); };
+      playBook(b); document.getElementById('pp-playlist').classList.remove('show'); };
     el.appendChild(d);
   });
 }
@@ -525,6 +536,14 @@ function stepTrack(dir){
 }
 document.getElementById('pp-prev').onclick=()=>stepTrack(-1);
 document.getElementById('pp-next').onclick=()=>stepTrack(1);
+function restartCurrent(){
+  const b = (playingAll && playlist.length) ? playlist[plIndex] : BOOKS[currentBookIndex()];
+  const f = (b && (b.file||b.audio||b.url)) || currentPlay.file || currentPlay.url;
+  if(f) clearPos(f);                 // 清空本篇续播进度
+  try{ audio.currentTime = 0; }catch(e){}
+  audio.play().catch(()=>{});
+}
+document.getElementById('pp-restart').onclick=restartCurrent;
 document.getElementById('pp-back').onclick=()=>hidePlayerPage();
 document.getElementById('pp-list-toggle').onclick=()=>{ renderPlaylist(); document.getElementById('pp-playlist').classList.toggle('show'); };
 document.getElementById('pp-seek').addEventListener('input', ()=>{ if(audio.duration) audio.currentTime=(ppSeek.value/1000)*audio.duration; });
@@ -588,7 +607,7 @@ BOOKS.forEach((b,i)=>{
       </div>
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
-  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
+  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b); };
   card.querySelector('.del-btn').onclick=async ()=>{
     if(!confirm('永久删除《'+b.title+'》？\n这将从服务器删除音频并移除播放条目，且无法撤销。')) return;
     hideFile(b.file); card.remove();  // 本地即时反馈
@@ -622,7 +641,7 @@ LTYV.forEach((b,i)=>{
       </div>
     </div>`;
   card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
-  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
+  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b); };
   card.querySelector('.del-btn').onclick=async ()=>{
     if(!confirm('永久删除《'+b.title+'》？\n这将从服务器删除音频并移除播放条目，且无法撤销。')) return;
     hideFile(b.file); card.remove();  // 本地即时反馈
