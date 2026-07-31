@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+F5-TTS 运行时推理服务（听我读·克隆音 后端）。
+
+可在两种环境运行：
+  1) 本地（仓库内）：使用本地权重与参考音。
+       python tts/server.py
+  2) 云端（如 HuggingFace Space）：权重经 model_type 自动下载，
+     参考音经 REF_URL 从 GitHub raw 自动拉取，无需本地产物。
+
+依赖：仅标准库 + f5_tts / soundfile / numpy。
+
+接口：
+    GET  /health      -> {"ok":true,"loaded":bool,"device":"cpu"}
+    POST /generate    -> 音频 (audio/wav)
+         body (JSON):
+           text       (必填) 要合成的文本
+           ref        (可选) listen-to-your-voice/ 下参考音文件名，默认 ltyv_reference.wav
+           ref_text   (可选) 参考音的文本（提升克隆质量）
+           nfe_step   (可选) 推理步数，默认 16（越快越糙，32 更稳）
+           speed      (可选) 语速，默认 1.0
+    POST /refresh-ref -> 从 REF_URL 重新拉取参考音（换声后无需重启）
+
+环境变量：
+    F5_PORT / F5_HOST     端口 / 地址（默认 8000 / 0.0.0.0）
+    F5_CKPT               模型权重路径；缺失则按 model_type 自动下载（HF Space 友好）
+    REF_DIR               参考音目录（默认 <repo>/listen-to-your-voice）
+    REF_URL               参考音远程地址（默认本仓库 GitHub raw 的 ltyv_reference.wav）
+"""
+import json
+import os
+import sys
+import threading
+import traceback
+import urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse
+
+PORT = int(os.environ.get("F5_PORT", "8000"))
+HOST = os.environ.get("F5_HOST", "0.0.0.0")
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(HERE, ".."))
+REF_DIR = os.environ.get("REF_DIR") or os.path.join(REPO_ROOT, "listen-to-your-voice")
+CKPT = os.environ.get("F5_CKPT") or os.path.join(
+    REPO_ROOT, "tts_models", "F5TTS_Base", "F5TTS_Base", "model_1200000.pt"
+)
+DEFAULT_REF = "ltyv_reference.wav"
+# 参考音远程地址（换声后前端上传会更新 GitHub 仓库同名文件；本服务可据此热更新）
+REF_URL = os.environ.get("REF_URL") or (
+    "https://raw.githubusercontent.com/xzqq5257/tingbook/main/"
+    "listen-to-your-voice/ltyv_reference.wav"
+)
+
+_model = None
+_model_lock = threading.Lock()
+_device = "cpu"
+
+
+def _cuda_available():
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
+
+
+def get_model():
+    """加载并缓存 F5TTS 模型（线程安全）。本地权重优先，缺失则自动下载。"""
+    global _model, _device
+    if _model is not None:
+        return _model
+    with _model_lock:
+        if _model is not None:
+            return _model
+        from f5_tts.api import F5TTS
+        _device = "cuda" if _cuda_available() else "cpu"
+        kwargs = dict(model_type="F5TTS_Base", vocoder_name="vocos", device=_device)
+        if CKPT and os.path.isfile(CKPT):
+            kwargs["ckpt_file"] = CKPT
+            src = CKPT
+        else:
+            # 自动下载默认 F5TTS_Base 权重（HF Space / 无本地权重场景）
+            src = "auto-download (model_type=F5TTS_Base)"
+        print(f"[f5-server] loading F5TTS_Base from {src} on {_device} ...", flush=True)
+        _model = F5TTS(**kwargs)
+        print("[f5-server] model ready.", flush=True)
+        return _model
+
+
+def resolve_ref(ref_name):
+    """只允许 REF_DIR 内的参考音文件，防止路径穿越。"""
+    if not ref_name:
+        ref_name = DEFAULT_REF
+    base = os.path.basename(ref_name)
+    path = os.path.join(REF_DIR, base)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"参考音不存在: {base}")
+    return path
+
+
+def download_ref_to(ref_name, url):
+    """从 url 下载参考音到 REF_DIR（首次启动/热更新用）。"""
+    os.makedirs(REF_DIR, exist_ok=True)
+    dst = os.path.join(REF_DIR, ref_name)
+    tmp = dst + ".tmp"
+    print(f"[f5-server] downloading ref {ref_name} <- {url}", flush=True)
+    req = urllib.request.Request(url, headers={"User-Agent": "tingbook-f5-server"})
+    with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f:
+        f.write(r.read())
+    os.replace(tmp, dst)
+    print(f"[f5-server] ref saved -> {dst}", flush=True)
+    return dst
+
+
+def ensure_ref(ref_name=DEFAULT_REF):
+    """确保参考音存在：本地有则用本地，否则尝试从 REF_URL 拉取。"""
+    path = os.path.join(REF_DIR, ref_name)
+    if os.path.isfile(path):
+        return path
+    # 仅当 REF_URL 指向同一文件名时才用远程拉取（避免误覆盖）
+    if REF_URL.rstrip("/").endswith(ref_name):
+        try:
+            return download_ref_to(ref_name, REF_URL)
+        except Exception as e:
+            raise FileNotFoundError(f"参考音缺失且远程拉取失败: {e}")
+    raise FileNotFoundError(f"参考音不存在: {ref_name}")
+
+
+def do_generate(payload):
+    text = (payload.get("text") or "").strip()
+    if not text:
+        raise ValueError("缺少 text 字段")
+    if len(text) > 2000:
+        raise ValueError("text 过长（上限 2000 字）")
+    ref_path = ensure_ref(payload.get("ref") or DEFAULT_REF)
+    ref_text = payload.get("ref_text") or ""
+    nfe_step = int(payload.get("nfe_step") or 16)
+    speed = float(payload.get("speed") or 1.0)
+
+    model = get_model()
+    wav, sr, _ = model.infer(
+        ref_audio=ref_path,
+        ref_text=ref_text,
+        gen_text=text,
+        nfe_step=nfe_step,
+        speed=speed,
+    )
+    import soundfile as sf
+    import io
+    buf = io.BytesIO()
+    sf.write(buf, wav, sr, format="WAV")
+    return buf.getvalue()
+
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def _cors(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def _send_json(self, code, obj, extra=None):
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self._cors()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_audio(self, wav_bytes):
+        self.send_response(200)
+        self.send_header("Content-Type", "audio/wav")
+        self._cors()
+        self.send_header("Content-Length", str(len(wav_bytes)))
+        self.end_headers()
+        self.wfile.write(wav_bytes)
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write("[f5-server] " + (fmt % args) + "\n")
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._cors()
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_GET(self):
+        p = urlparse(self.path)
+        if p.path.rstrip("/") in ("/health", ""):
+            with _model_lock:
+                loaded = _model is not None
+            self._send_json(200, {"ok": True, "loaded": loaded, "device": _device})
+            return
+        self._send_json(404, {"ok": False, "error": "not found"})
+
+    def do_POST(self):
+        p = urlparse(self.path)
+        route = p.path.rstrip("/")
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            raw = self.rfile.read(length) if length else b"{}"
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except Exception as je:
+                try:
+                    payload = {"text": raw.decode("utf-8", "replace")}
+                except Exception:
+                    payload = {}
+                sys.stderr.write(f"[f5-server] json parse failed ({je}); fallback\n")
+        except Exception:
+            self._send_json(400, {"ok": False, "error": "bad request body"})
+            return
+
+        if route == "/generate":
+            try:
+                wav = do_generate(payload)
+                self._send_audio(wav)
+            except Exception as e:
+                tb = traceback.format_exc()
+                sys.stderr.write(tb)
+                msg = str(e)
+                code = 400 if isinstance(e, (ValueError, FileNotFoundError)) else 500
+                self._send_json(code, {"ok": False, "error": msg})
+        elif route == "/refresh-ref":
+            try:
+                if not REF_URL.rstrip("/").endswith(DEFAULT_REF):
+                    self._send_json(400, {"ok": False, "error": "REF_URL 未指向默认参考音，无法热更新"})
+                    return
+                download_ref_to(DEFAULT_REF, REF_URL)
+                self._send_json(200, {"ok": True, "ref": DEFAULT_REF})
+            except Exception as e:
+                self._send_json(500, {"ok": False, "error": str(e)})
+        else:
+            self._send_json(404, {"ok": False, "error": "not found"})
+
+
+def main():
+    # 提前确认参考音（缺失则尝试从 GitHub 拉取；失败会在此报错退出）
+    try:
+        ensure_ref()
+    except Exception as e:
+        print(f"[f5-server] 警告：参考音不可用: {e}", file=sys.stderr)
+    # 关键：主线程预加载模型，切勿在请求子线程里加载 torch 大模型
+    # （Windows 下子线程加载 F5TTS 会触发段错误；云端主线程加载也最稳妥）
+    try:
+        get_model()
+    except Exception as e:
+        print(f"[f5-server] 模型加载失败: {e}", file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
+    srv = HTTPServer((HOST, PORT), Handler)
+    print(f"[f5-server] listening on http://{HOST}:{PORT}  (ref_dir={REF_DIR})", flush=True)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[f5-server] stopped.", flush=True)
+
+
+if __name__ == "__main__":
+    main()
