@@ -30,6 +30,7 @@ F5-TTS 运行时推理服务（听我读·克隆音 后端）。
 """
 import json
 import os
+import re
 import sys
 import threading
 import traceback
@@ -100,11 +101,43 @@ def resolve_ref(ref_name):
     return path
 
 
+def _ref_api_url():
+    """由 REF_URL（raw.githubusercontent）推导 GitHub API contents 地址，避免 raw CDN 缓存导致换声延迟。"""
+    m = re.search(r"raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/(.+)", REF_URL)
+    if m:
+        owner, repo, branch, path = m.groups()
+        return f"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={branch}"
+    return None
+
+
 def download_ref_to(ref_name, url):
-    """从 url 下载参考音到 REF_DIR（首次启动/热更新用）。"""
+    """从 url 下载参考音到 REF_DIR（首次启动/热更新用）。
+
+    优先走 GitHub API contents 接口（返回最新的 blob，无 raw CDN 缓存），
+    失败时回退到 REF_URL（raw）。
+    """
     os.makedirs(REF_DIR, exist_ok=True)
     dst = os.path.join(REF_DIR, ref_name)
     tmp = dst + ".tmp"
+    api_url = _ref_api_url()
+    # 1) 尝试 GitHub API（最新鲜）
+    if api_url:
+        try:
+            req = urllib.request.Request(
+                api_url, headers={"User-Agent": "tingbook-f5-server", "Accept": "application/vnd.github+json"}
+            )
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            import base64
+            content = base64.b64decode(data["content"])
+            with open(tmp, "wb") as f:
+                f.write(content)
+            os.replace(tmp, dst)
+            print(f"[f5-server] ref saved (via API) -> {dst}", flush=True)
+            return dst
+        except Exception as e:
+            print(f"[f5-server] API 拉取参考音失败，回退 raw: {e}", file=sys.stderr, flush=True)
+    # 2) 回退 raw
     print(f"[f5-server] downloading ref {ref_name} <- {url}", flush=True)
     req = urllib.request.Request(url, headers={"User-Agent": "tingbook-f5-server"})
     with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f:
