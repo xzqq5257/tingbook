@@ -77,7 +77,7 @@ export async function onRequestPost(context){
       { status:400, headers:{ "content-type":"application/json" } });
   }
   try{
-    const enc = encodeURIComponent(file);
+    const enc = file.split('/').map(encodeURIComponent).join('/'); // 逐段编码，保留路径分隔符'/'
     // 1) 取得音频文件 sha
     const fRes = await gh(c.TOKEN, "GET", `/repos/${c.OWNER}/${c.REPO}/contents/${enc}?ref=${c.BRANCH}`);
     if(!fRes.ok) throw new Error("file not found on GitHub: " + file);
