@@ -80,7 +80,10 @@ export async function onRequestPost(context){
     const enc = file.split('/').map(encodeURIComponent).join('/'); // 逐段编码，保留路径分隔符'/'
     // 1) 取得音频文件 sha
     const fRes = await gh(c.TOKEN, "GET", `/repos/${c.OWNER}/${c.REPO}/contents/${enc}?ref=${c.BRANCH}`);
-    if(!fRes.ok) throw new Error("file not found on GitHub: " + file);
+    if(!fRes.ok){
+      const txt = await fRes.text();
+      throw new Error(`getfile HTTP ${fRes.status} :: ${API}/repos/${c.OWNER}/${c.REPO}/contents/${enc}?ref=${c.BRANCH} :: ${txt.slice(0,200)}`);
+    }
     const fData = await fRes.json();
     // 2) 删除音频文件
     await gh(c.TOKEN, "DELETE", `/repos/${c.OWNER}/${c.REPO}/contents/${enc}?ref=${c.BRANCH}`, {
@@ -107,10 +110,10 @@ export async function onRequestPost(context){
         }
       }
     }
-    return new Response(JSON.stringify({ ok:true }),
+    return new Response(JSON.stringify({ ok:true, ver:"v2-seg" }),
       { headers:{ "content-type":"application/json" } });
   }catch(e){
-    return new Response(JSON.stringify({ ok:false, error: String(e && e.message ? e.message : e) }),
+    return new Response(JSON.stringify({ ok:false, ver:"v2-seg", error: String(e && e.message ? e.message : e) }),
       { status:500, headers:{ "content-type":"application/json" } });
   }
 }
