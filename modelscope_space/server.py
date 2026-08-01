@@ -70,6 +70,23 @@ def _cuda_available():
         return False
 
 
+def _try_modelscope_f5():
+    """尝试从 ModelScope 同生态下载 F5TTS_Base 权重（国内容器最稳），返回 ckpt 路径或 None。"""
+    try:
+        from modelscope import snapshot_download
+        d = snapshot_download("AI-ModelScope/F5-TTS")
+        for cand in (
+            os.path.join(d, "F5TTS_Base", "model_1200000.pt"),
+            os.path.join(d, "F5TTS_Base", "model_1200000.safetensors"),
+        ):
+            if os.path.isfile(cand):
+                print(f"[f5-server] F5 权重 (ModelScope): {cand}", flush=True)
+                return cand
+    except Exception as e:
+        print(f"[f5-server] modelscope 下载 F5 失败，回退 HF: {e}", file=sys.stderr, flush=True)
+    return None
+
+
 def get_model():
     """加载并缓存 F5TTS 模型（线程安全）。本地权重优先，缺失则自动下载。"""
     global _model, _device
@@ -85,8 +102,13 @@ def get_model():
             kwargs["ckpt_file"] = CKPT
             src = CKPT
         else:
-            # 自动下载默认 F5TTS_Base 权重（HF Space / 无本地权重场景）
-            src = "auto-download (model_type=F5TTS_Base)"
+            ms = _try_modelscope_f5()
+            if ms:
+                kwargs["ckpt_file"] = ms
+                src = ms
+            else:
+                # 回退：自动下载默认 F5TTS_Base 权重（HF 镜像）
+                src = "auto-download (model_type=F5TTS_Base)"
         print(f"[f5-server] loading F5TTS_Base from {src} on {_device} ...", flush=True)
         _model = F5TTS(**kwargs)
         print("[f5-server] model ready.", flush=True)
@@ -275,19 +297,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    # 提前确认参考音（缺失则尝试从 GitHub 拉取；失败会在此报错退出）
+    # 提前确认参考音（缺失则尝试从 GitHub 拉取；失败仅告警，不阻断启动）
     try:
         ensure_ref()
     except Exception as e:
         print(f"[f5-server] 警告：参考音不可用: {e}", file=sys.stderr)
-    # 关键：主线程预加载模型，切勿在请求子线程里加载 torch 大模型
-    # （Windows 下子线程加载 F5TTS 会触发段错误；云端主线程加载也最稳妥）
-    try:
-        get_model()
-    except Exception as e:
-        print(f"[f5-server] 模型加载失败: {e}", file=sys.stderr)
-        traceback.print_exc()
-        sys.exit(1)
+    # 不在启动期预加载模型：首次 /generate 请求时懒加载（避免权重下载耗时导致
+    # 平台健康检查超时判“启动失败”）。HTTPServer 单线程，加载在主线程进行，安全。
     srv = HTTPServer((HOST, PORT), Handler)
     print(f"[f5-server] listening on http://{HOST}:{PORT}  (ref_dir={REF_DIR})", flush=True)
     try:
