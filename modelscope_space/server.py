@@ -51,9 +51,10 @@ REPO_ROOT = os.path.abspath(os.path.join(HERE, ".."))
 REF_DIR = os.environ.get("REF_DIR") or os.path.join(REPO_ROOT, "listen-to-your-voice")
 CKPT = os.environ.get("F5_CKPT") or ""
 DEFAULT_REF = "ltyv_reference.wav"
-# 模型类型：默认 E2TTS_Base（约 360MB，免费 CPU 实例可跑）；
-# 若需更高音质可改 F5TTS_Base（约 1.3GB，需更高内存/GPU）。
-MODEL_TYPE = os.environ.get("F5_MODEL_TYPE", "E2TTS_Base")
+# 模型类型：默认 F5TTS_Base（官方 SWivid/F5-TTS 有现成权重 model_1200000.safetensors）。
+# 注：E2TTS_Base 在该官方仓库不存在（已实测 404），故用 F5TTS_Base；
+# 模型约 1.3GB，但运行实例有 64GB 内存，加载无压力。
+MODEL_TYPE = os.environ.get("F5_MODEL_TYPE", "F5TTS_Base")
 # 参考音远程地址（换声后前端上传会更新 GitHub 仓库同名文件；本服务可据此热更新）
 REF_URL = os.environ.get("REF_URL") or (
     "https://raw.githubusercontent.com/xzqq5257/tingbook/main/"
@@ -75,13 +76,24 @@ def _cuda_available():
 
 
 def _try_modelscope_download():
-    """运行时兜底：从 ModelScope 下载 E2TTS/F5 权重，返回 ckpt 路径或 None。"""
+    """运行时兜底：优先从 hf-mirror 下载官方 F5TTS_Base 权重（构建期若已预置则不会走到这里）。"""
+    # 1) 优先 hf-mirror（SWivid/F5-TTS，国内可达；构建期 download_ckpts.py 已用它预置）
+    try:
+        from huggingface_hub import hf_hub_download
+        os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+        f = hf_hub_download(repo_id="SWivid/F5-TTS", filename=f"{MODEL_TYPE}/model_1200000.safetensors")
+        if f and os.path.isfile(f):
+            print(f"[f5-server] 权重 (hf-mirror/{MODEL_TYPE}): {f}", flush=True)
+            return f
+    except Exception as e:
+        print(f"[f5-server] hf-mirror 下载失败，回退 modelscope: {e}", file=sys.stderr, flush=True)
+    # 2) 回退 modelscope
     try:
         from modelscope import snapshot_download
         d = snapshot_download("AI-ModelScope/F5-TTS")
-        for sub in (MODEL_TYPE, "E2TTS_Base", "F5TTS_Base"):
+        for sub in (MODEL_TYPE, "F5TTS_Base"):
             for ext in ("safetensors", "pt"):
-                cand = os.path.join(d, "ckpts", sub, f"model_1200000.{ext}")
+                cand = os.path.join(d, sub, f"model_1200000.{ext}")
                 if os.path.isfile(cand):
                     print(f"[f5-server] 权重 (ModelScope/{sub}): {cand}", flush=True)
                     return cand

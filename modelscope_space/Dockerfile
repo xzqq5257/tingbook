@@ -7,9 +7,9 @@ COPY ./ /home/user/app
 # 重要：切勿使用 mirrors.modelscope.cn —— 该构建集群解析不到此主机（DNS 失败），
 # 会让每个包都先空转数十秒重试，最终把构建拖超时。
 RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --extra-index-url https://mirrors.aliyun.com/pypi/simple/
-# 构建期预置权重到 /app/ckpts/E2TTS_Base（见 download_ckpts.py，约 360MB，免费 CPU 可跑），避免运行时临时下载触发平台反代超时
+# 构建期预置权重到 /app/ckpts/F5TTS_Base（见 download_ckpts.py，从 hf-mirror 拉官方权重，约 1.3GB；运行实例 64GB 内存足够），避免运行时临时下载触发平台反代超时
 RUN python download_ckpts.py
-ENV F5_MODEL_TYPE=E2TTS_Base
+ENV F5_MODEL_TYPE=F5TTS_Base
 ENV F5_PORT=7860
 EXPOSE 7860
 ENTRYPOINT ["python", "-u", "app.py"]
