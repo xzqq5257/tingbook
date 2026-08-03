@@ -67,6 +67,11 @@
   .pp-sub{flex:1;overflow-y:auto;padding:26px 22px;font-size:19px;line-height:2.0}
   .pp-sub .sent{display:block;padding:7px 12px;border-radius:8px;color:#9aa3b2;cursor:pointer;transition:.15s}
   .pp-sub .sent.active{background:rgba(124,92,255,.20);color:#fff;font-weight:600}
+  .pp-sub .sent-regen{display:inline-block;margin-left:8px;font-size:13px;line-height:1;border:0;background:transparent;color:#7c5cff;cursor:pointer;opacity:0;transition:.15s;vertical-align:middle;padding:2px 4px;border-radius:6px}
+  .pp-sub .sent:hover .sent-regen{opacity:1}
+  .pp-sub .sent-regen:hover{color:#fff;background:rgba(124,92,255,.30)}
+  .pp-sub .sent-regen.busy{opacity:1;color:#b8902f;cursor:default}
+  .pp-sub .sent-regen.done{opacity:1;color:#3ec98a}
   .pp-playlist{position:absolute;top:58px;right:10px;width:240px;max-height:62%;overflow-y:auto;background:#11141a;border:1px solid var(--line);border-radius:10px;display:none;z-index:60;box-shadow:0 8px 30px rgba(0,0,0,.5)}
   .pp-playlist.show{display:block}
   .pp-playlist .pl-item{padding:11px 13px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer}
@@ -271,6 +276,7 @@ let continueProg = null;
 let lastSave = 0;
 let sleepTimer = null, sleepInterval = null, sleepEnd = 0;
 let loopMode = 'off';   // 'off' | 'one' (单曲循环) | 'all' (列表循环)
+let advanceGuard = false;   // 防止 ended 与 timeupdate 兜底重复触发导致一次播完跳两首
 
 function fmtTime(s){ s=Math.max(0,Math.floor(s||0)); const m=Math.floor(s/60); return m+':'+String(s%60).padStart(2,'0'); }
 
@@ -408,7 +414,20 @@ function renderSubtitle(text){
   subtitleEl.style.display='block'; subtitleEl.innerHTML='';
   curSentences.forEach((s,i)=>{
     const span=document.createElement('span'); span.className='sent'; span.textContent=s; span.dataset.i=i;
-    span.onclick=()=>{ if(curMarks&&curMarks[i]){ audio.currentTime=curMarks[i][0]; audio.play().catch(()=>{}); } };
+    span.onclick=()=>{
+      if(tingMode==='clone'){
+        regenSentence(s, null);
+        span.classList.add('active');
+        setTimeout(()=>span.classList.remove('active'), 600);
+      } else if(curMarks&&curMarks[i]){
+        audio.currentTime=curMarks[i][0]; audio.play().catch(()=>{});
+      }
+    };
+    const regen=document.createElement('button');
+    regen.type='button'; regen.className='sent-regen'; regen.textContent='↻';
+    regen.title='用克隆音重新生成这一句的朗读（听我读）';
+    regen.addEventListener('click', (e)=>{ e.stopPropagation(); regenSentence(s, regen); });
+    span.appendChild(regen);
     subtitleEl.appendChild(span);
   });
   highlight(-1);
@@ -425,6 +444,7 @@ function hidePlayerPage(){ playerPage.classList.remove('show'); }
 function hideResumeBars(){ resumeBar.style.display='none'; const rc=document.getElementById('resume-card'); if(rc) rc.style.display='none'; }
 function updateNowPlaying(){ const np=document.getElementById('now-playing'); if(currentPlay.name){ np.style.display=''; np.textContent='🎵 '+currentPlay.name; } }
 function playBook(b, startTime){
+  advanceGuard = false;   // 新一首开场即解除“播完”兜底锁，避免续播被误判为已处理
   const _f = b.file || b.audio || b.url;
   if(startTime === undefined) startTime = getPos(_f);   // 未显式指定起点 -> 续播该篇上次位置
   startTime = startTime || 0;
@@ -463,13 +483,16 @@ audio.addEventListener('timeupdate', ()=>{
   if(now-lastSave>3000 && (currentPlay.file||currentPlay.url)){ lastSave=now; saveProgress(); setPos(currentPlay.file||currentPlay.url, audio.currentTime); }
 });
 audio.addEventListener('pause', ()=>{ document.getElementById('pp-play').textContent='▶'; saveProgress(); updateResumeBar(); setPos(currentPlay.file||currentPlay.url, audio.currentTime); });
-audio.addEventListener('play', ()=>{ document.getElementById('pp-play').textContent='⏸'; });
-audio.addEventListener('ended', ()=>{
+audio.addEventListener('play', ()=>{ advanceGuard=false; document.getElementById('pp-play').textContent='⏸'; });
+// 统一处理“一首播完”：单曲循环 / 列表循环 / 顺序播放下一首 / 全部播完
+// advanceGuard 防止 ended 与下方 timeupdate 兜底对同一首重复触发（否则会一次跳两首）
+function onTrackEnded(){
+  if(advanceGuard) return; advanceGuard = true;
   document.getElementById('pp-play').textContent='▶';
-  if(loopMode==='one'){ audio.currentTime=0; audio.play().catch(()=>{}); return; }
+  if(loopMode==='one'){ audio.currentTime=0; audio.play().catch(()=>{}); advanceGuard=false; return; }
   if(loopMode==='all'){
     const list = (playingAll && playlist.length) ? playlist : BOOKS;
-    let idx = (playingAll && playlist.length) ? plIndex : BOOKS.findIndex(b => b.file === currentPlay.file);
+    let idx = (playingAll && playlist.length) ? plIndex : BOOKS.findIndex(b => (b.file||b.audio||b.url) === currentPlay.file);
     if(idx < 0) idx = 0;
     const n = (idx + 1) % list.length;            // 列表循环：播完自动跳下一篇，末尾回第 1 篇
     playlist = (playingAll && playlist.length) ? playlist : BOOKS.slice();
@@ -490,6 +513,11 @@ audio.addEventListener('ended', ()=>{
     document.getElementById('playing-all-status').textContent='已全部播放完毕 ✓';
   }
   document.querySelectorAll('#list .card.playing').forEach(c=>c.classList.remove('playing'));
+}
+audio.addEventListener('ended', onTrackEnded);
+// 兜底：部分流式音频 / 个别浏览器 ended 事件不触发，用 timeupdate 检测接近结尾来续播
+audio.addEventListener('timeupdate', ()=>{
+  if(!advanceGuard && audio.duration && audio.currentTime >= audio.duration - 0.4) onTrackEnded();
 });
 
 function playItem(i, mode){
@@ -640,7 +668,11 @@ BOOKS.forEach((b,i)=>{
 const LTYV = [
   { title:"Listen To Your Voice · 原声试听", duration:13,
     text:"（wuyongss 原始参考音频，即被克隆的真实声音）",
-    file:"listen-to-your-voice/ltyv_reference.wav" }];
+    file:"listen-to-your-voice/ltyv_reference.wav" },
+  { title:"Listen To Your Voice 演示 ·《葬花吟》(参数化)", duration:110,
+    text:"花谢花飞花满天，红消香断有谁怜。\n游丝软系飘春榭，落絮轻沾扑绣帘。\n闺中女儿惜春暮，愁绪满怀无释处。\n手把花锄出绣帘，忍踏落花来复去。\n柳丝榆荚自芳菲，不管桃飘与李飞。\n桃李明年能再发，明年闺中知有谁？\n三月香巢已垒成，梁间燕子太无情！\n明年花发虽可啄，却不道人去梁空巢也倾。\n一年三百六十日，风刀霜剑严相逼。\n明媚鲜妍能几时，一朝飘泊难寻觅。\n花开易见落难寻，阶前闷杀葬花人。\n独倚花锄泪暗洒，洒上空枝见血痕。\n杜鹃无语正黄昏，荷锄归去掩重门。\n青灯照壁人初睡，冷雨敲窗被未温。\n怪奴底事倍伤神，半为怜春半恼春。\n怜春忽至恼忽去，至又无言去不闻。\n昨宵庭外悲歌发，知是花魂与鸟魂？\n花魂鸟魂总难留，鸟自无言花自羞。\n愿奴胁下生双翼，随花飞到天尽头！\n天尽头，何处有香丘？\n未若锦囊收艳骨，一抔净土掩风流。\n质本洁来还洁去，强于污淖陷渠沟。\n尔今死去侬收葬，未卜侬身何日丧？\n侬今葬花人笑痴，他年葬侬知是谁？\n试看春残花渐落，便是红颜老死时。\n一朝春尽红颜老，花落人亡两不知！",
+    file:"listen-to-your-voice/ltyv_read_zanghuayin.wav" }
+];
 const ltyvEl = document.getElementById('ltyv-list');
 LTYV.forEach((b,i)=>{
   if(isHidden(b.file)) return;
@@ -797,6 +829,46 @@ async function tingCloneSpeak(){
       if(pick){ u.voice = pick; u.lang = pick.lang; }
       speechSynthesis.speak(u);
     }
+  }
+}
+
+// ---------------- 点击字幕某句：用克隆音重新生成这一句 ----------------
+async function regenSentence(text, btn){
+  if(!text || !text.trim()) return;
+  if(btn){ btn.disabled = true; btn.classList.add('busy'); btn.classList.remove('done'); btn.textContent='⏳'; }
+  try{
+    const resp = await fetch('/api/ting-read', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify({ text, nfe_step:16 })
+    });
+    if(!resp.ok){
+      let msg=''; try{ const j = await resp.json(); msg = j.error || ''; }catch(e){}
+      throw new Error(msg || ('HTTP '+resp.status));
+    }
+    const blob = await resp.blob();
+    if(!blob.size) throw new Error('空音频');
+    const url = URL.createObjectURL(blob);
+    const a = new Audio(url);
+    a.onended = ()=>{ URL.revokeObjectURL(url); if(btn){ btn.classList.remove('busy'); btn.classList.add('done'); btn.textContent='✓'; setTimeout(()=>{ if(btn){ btn.classList.remove('done'); btn.textContent='↻'; } }, 1500); } };
+    a.onerror = ()=>{ URL.revokeObjectURL(url); };
+    await a.play().catch(()=>{});
+  }catch(e){
+    // 克隆音不可用时退回系统嗓音朗读该句
+    if('speechSynthesis' in window){
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      try{
+        const tv = (typeof tingVoice !== 'undefined') ? tingVoice.value : null;
+        const vs = speechSynthesis.getVoices();
+        const pick = (tv && vs.find(v=>v.voiceURI===tv)) || vs.find(v=>/zh|cmn|Chinese|Yue|Han/i.test(v.lang)) || vs[0];
+        if(pick){ u.voice = pick; u.lang = pick.lang; }
+      }catch(_){}
+      speechSynthesis.speak(u);
+    }
+    if(btn) btn.title = '克隆音暂不可用（'+e.message+'），已退回系统嗓音';
+  }finally{
+    if(btn){ btn.disabled = false; btn.classList.remove('busy'); if(btn.textContent==='⏳') btn.textContent='↻'; }
   }
 }
 
