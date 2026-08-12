@@ -27,13 +27,33 @@ export const onRequestPost = async ({ request, env }) => {
   if (!text) {
     return json({ ok: false, error: "缺少 text 字段" }, 400);
   }
-  const payload = JSON.stringify({
+  const payloadObj = {
     text: text.slice(0, 2000),
     ref: body.ref || "",
     ref_text: body.ref_text || "",
     nfe_step: Number(body.nfe_step) || 16,
     speed: Number(body.speed) || 1.0,
-  });
+  };
+
+  // 若配置了音色仓库（KV）且存在「激活音色」，把该音色的参考音作为 ref_audio（base64）
+  // 传给 F5，实现「用户选定音色」的克隆，而非依赖 F5 服务端固定参考音。
+  const kv = env.TINGBOOK_KV;
+  if (kv) {
+    try {
+      const activeId = await kv.get("voice:active");
+      if (activeId) {
+        const audioB64 = await kv.get(`voice:audio:${activeId}`);
+        if (audioB64) {
+          payloadObj.ref_audio = audioB64;
+          payloadObj.ref = ""; // 不再让 F5 用服务端默认参考音
+        }
+      }
+    } catch (e) {
+      // 忽略：回退到 F5 默认参考音
+    }
+  }
+
+  const payload = JSON.stringify(payloadObj);
 
   let upstream;
   try {
