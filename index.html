@@ -72,6 +72,19 @@
   .pp-sub .sent-regen:hover{color:#fff;background:rgba(124,92,255,.30)}
   .pp-sub .sent-regen.busy{opacity:1;color:#b8902f;cursor:default}
   .pp-sub .sent-regen.done{opacity:1;color:#3ec98a}
+  /* 电子书阅读器句子（沿用字幕句的视觉） */
+  .ebook-sentences{padding:4px 2px}
+  .ebook-sentences .sent{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-radius:8px;color:#cfd5e0;cursor:default;transition:.15s;border:1px solid transparent}
+  .ebook-sentences .sent:hover{background:rgba(124,92,255,.10);border-color:var(--line)}
+  .ebook-sentences .sent.playing{background:rgba(124,92,255,.20);color:#fff;font-weight:600}
+  .ebook-sentences .sent-text{flex:1;line-height:1.7}
+  .ebook-sentences .sent-regen{display:inline-block;flex:0 0 auto;font-size:13px;line-height:1;border:0;background:#2a2f3a;color:#7c5cff;cursor:pointer;padding:4px 8px;border-radius:6px;transition:.15s}
+  .ebook-sentences .sent-regen:hover{color:#fff;background:rgba(124,92,255,.30)}
+  .ebook-sentences .sent-regen.busy{color:#b8902f;cursor:default}
+  .ebook-sentences .sent-regen.done{color:#3ec98a}
+  .ebook-book{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#0f131a}
+  .ebook-book .eb-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ebook-book .eb-meta{font-size:11px;color:var(--muted)}
   .pp-playlist{position:absolute;top:58px;right:10px;width:240px;max-height:62%;overflow-y:auto;background:#11141a;border:1px solid var(--line);border-radius:10px;display:none;z-index:60;box-shadow:0 8px 30px rgba(0,0,0,.5)}
   .pp-playlist.show{display:block}
   .pp-playlist .pl-item{padding:11px 13px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer}
@@ -232,6 +245,27 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   </div>
 </div>
 
+<div class="ltyv-section" id="ebook-section">
+  <div class="ltyv-title">📚 我的书架 · 上传电子书朗读</div>
+  <div class="ltyv-desc">上传 <b>.txt</b> 或 <b>.epub</b> 电子书，自动解析正文并<b>保存到本机</b>，随时点开用克隆音逐句朗读。文件仅存于你当前浏览器，不会上传到服务器。</div>
+  <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input id="ebook-file" type="file" accept=".txt,.epub,text/plain,application/epub+zip" class="inp" style="flex:1;min-width:200px"/>
+    <button id="ebook-upload" class="play-btn">📥 解析并保存</button>
+    <span id="ebook-msg" class="meta"></span>
+  </div>
+  <div id="ebook-shelf" style="margin-top:12px"></div>
+  <div id="ebook-reader" style="display:none;margin-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <b id="ebook-reader-title" style="color:var(--accent2)"></b>
+      <div>
+        <button id="ebook-readall" class="badge" style="background:var(--accent);color:#fff;border:0">🔊 从开头朗读全部</button>
+        <button id="ebook-reader-close" class="badge">✕ 关闭</button>
+      </div>
+    </div>
+    <div id="ebook-sentences" class="ebook-sentences" style="margin-top:10px;max-height:60vh;overflow:auto"></div>
+  </div>
+</div>
+
 <div id="list"></div>
 <div id="restore-row" style="display:none;margin:4px 14px 14px"><button id="restore-hidden" class="play-btn">♻ 恢复已删除条目</button></div>
 
@@ -309,7 +343,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
         <p class="muted">上传参考音并命名，朗读「听我读」时即可使用对应音色；可设其中一个为默认。</p>
         <div class="vrow">
           <input id="voice-name" class="inp" placeholder="音色名称，如 小明" style="flex:1">
-          <input id="voice-file" class="inp" type="file" accept="audio/*" style="flex:1">
+          <input id="voice-file-upload" class="inp" type="file" accept="audio/*" style="flex:1">
         </div>
         <div class="vrow">
           <input id="voice-reftext" class="inp" placeholder="参考音文本（可选，提升克隆质量）" style="flex:1">
@@ -387,7 +421,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   }
   document.getElementById('voice-add').addEventListener('click',async function(){
     var name=document.getElementById('voice-name').value.trim();
-    var file=document.getElementById('voice-file').files[0];
+    var file=document.getElementById('voice-file-upload').files[0];
     var refText=document.getElementById('voice-reftext').value.trim();
     var msg=document.getElementById('voice-msg');
     if(!name||!file){msg.textContent='请填写名称并选择音频';return;}
@@ -395,7 +429,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     var fd=new FormData();fd.append('name',name);fd.append('file',file);if(refText)fd.append('refText',refText);
     try{
       var r=await fetch('/api/voices',{method:'POST',body:fd});var j=await r.json();
-      if(r.ok&&j.ok){msg.textContent='已添加';document.getElementById('voice-name').value='';document.getElementById('voice-file').value='';document.getElementById('voice-reftext').value='';await loadVoices();}
+      if(r.ok&&j.ok){msg.textContent='已添加';document.getElementById('voice-name').value='';document.getElementById('voice-file-upload').value='';document.getElementById('voice-reftext').value='';await loadVoices();}
       else msg.textContent=j.error||'上传失败';
     }catch(e){msg.textContent='网络错误';}
   });
@@ -1085,6 +1119,196 @@ document.getElementById('poly-save').onclick=async ()=>{
     msg.textContent = (j.status==='ok') ? ('✅ 已保存 '+j.count+' 条，新生成即生效') : '❌ 保存失败';
   }catch(e){ msg.textContent='❌ 保存失败'; }
 };
+</script>
+<script>
+/* === 电子书：上传(txt/epub) → 解析 → 本机保存 → 克隆音逐句朗读 === */
+(function(){
+  function esc(s){ return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function stripHtml(s){
+    return (s||'').replace(/<script[\s\S]*?<\/script>/gi,'')
+      .replace(/<style[\s\S]*?<\/style>/gi,'')
+      .replace(/<[^>]+>/g,' ')
+      .replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+      .replace(/&#(\d+);/g, function(m,n){ return String.fromCharCode(+n); })
+      .replace(/&#x([0-9a-f]+);/gi, function(m,n){ return String.fromCharCode(parseInt(n,16)); });
+  }
+  function fmtSize(n){ if(!n) return ''; if(n<1024) return n+'B'; if(n<1048576) return (n/1024).toFixed(1)+'KB'; return (n/1048576).toFixed(1)+'MB'; }
+
+  var USER_BOOKS_KEY='tingbook_user_books_v1';
+  function loadBookIndex(){ try{ return JSON.parse(localStorage.getItem(USER_BOOKS_KEY)||'[]'); }catch(e){ return []; } }
+  function saveBookIndex(idx){ try{ localStorage.setItem(USER_BOOKS_KEY, JSON.stringify(idx)); }catch(e){} }
+  async function saveBook(book){
+    var idx=loadBookIndex();
+    idx.unshift({id:book.id,title:book.title,type:book.type,ts:book.ts,size:book.size});
+    saveBookIndex(idx);
+    await _idb.set('book:'+book.id, book);
+  }
+
+  var _jszipPromise=null;
+  function ensureJSZip(){
+    if(window.JSZip) return Promise.resolve(window.JSZip);
+    if(_jszipPromise) return _jszipPromise;
+    _jszipPromise=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      s.onload=function(){ window.JSZip?res(window.JSZip):rej(new Error('JSZip 加载失败')); };
+      s.onerror=function(){ rej(new Error('JSZip 加载失败（请检查网络）')); };
+      document.head.appendChild(s);
+    });
+    return _jszipPromise;
+  }
+  async function parseEpub(arrayBuffer){
+    var JSZip=await ensureJSZip();
+    var zip=await JSZip.loadAsync(arrayBuffer);
+    var containerFile=zip.file('META-INF/container.xml');
+    if(!containerFile) throw new Error('epub 缺少 container.xml');
+    var container=await containerFile.async('string');
+    var opfPath=(container.match(/full-path="([^"]+)"/)||[])[1];
+    if(!opfPath) throw new Error('epub 结构异常（找不到 OPF）');
+    var opfFile=zip.file(opfPath); if(!opfFile) throw new Error('epub 找不到 OPF 文件');
+    var opf=await opfFile.async('string');
+    var title=(opf.match(/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i)||[])[1]||'';
+    title=stripHtml(title).replace(/\s+/g,' ').trim();
+    var spineBlock=(opf.match(/<spine[^>]*>([\s\S]*?)<\/spine>/i)||[])[1]||'';
+    var manifestBlock=(opf.match(/<manifest[^>]*>([\s\S]*?)<\/manifest>/i)||[])[1]||'';
+    var hrefById={};
+    var itemTags=[...manifestBlock.matchAll(/<item\b([^>]*)\/?>/gi)];
+    itemTags.forEach(function(m){
+      var tag=m[1];
+      var id=(tag.match(/\bid="([^"]+)"/i)||[])[1];
+      var href=(tag.match(/\bhref="([^"]+)"/i)||[])[1];
+      if(id&&href) hrefById[id]=href;
+    });
+    var ids=[...spineBlock.matchAll(/<itemref[^>]*idref="([^"]+)"/gi)].map(function(m){ return m[1]; });
+    var baseDir=opfPath.indexOf('/')>=0?opfPath.slice(0,opfPath.lastIndexOf('/')+1):'';
+    var text='';
+    for(var i=0;i<ids.length;i++){
+      var href=hrefById[ids[i]]; if(!href) continue;
+      var full=href.charAt(0)==='/'?href.slice(1):baseDir+href;
+      var f=zip.file(full); if(!f) continue;
+      var xhtml=await f.async('string');
+      text+='\n'+stripHtml(xhtml)+'\n';
+    }
+    text=text.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+    return {title:title, text:text};
+  }
+
+  // 单句克隆音朗读（用于「朗读全部」顺序播放；失败静默跳过）
+  function cloneSpeakSentence(text){
+    return new Promise(function(resolve){
+      if(!text||!text.trim()){ resolve(); return; }
+      fetch('/api/ting-read', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({text:text, nfe_step:16})})
+        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+        .then(function(blob){
+          if(!blob.size) throw new Error('空音频');
+          var url=URL.createObjectURL(blob); var a=new Audio(url);
+          a.onended=function(){ URL.revokeObjectURL(url); resolve(); };
+          a.onerror=function(){ URL.revokeObjectURL(url); resolve(); };
+          a.play().catch(function(){ URL.revokeObjectURL(url); resolve(); });
+        })
+        .catch(function(){ resolve(); });
+    });
+  }
+
+  function renderShelf(){
+    var shelf=document.getElementById('ebook-shelf');
+    var idx=loadBookIndex();
+    if(!idx.length){ shelf.innerHTML='<span class="meta">书架还是空的，上传一本电子书开始吧。</span>'; return; }
+    shelf.innerHTML='';
+    idx.forEach(function(b){
+      var row=document.createElement('div'); row.className='ebook-book';
+      var t=document.createElement('div'); t.className='eb-title';
+      t.innerHTML='<b>'+esc(b.title)+'</b> <span class="eb-meta">· '+b.type.toUpperCase()+' · '+fmtSize(b.size)+'</span>';
+      var open=document.createElement('button'); open.className='badge'; open.textContent='📖 打开';
+      open.style.background='var(--accent)'; open.style.color='#fff'; open.style.border='0';
+      open.onclick=function(){ openBook(b.id, b.title); };
+      var del=document.createElement('button'); del.className='badge'; del.textContent='🗑 删除';
+      del.onclick=async function(){
+        if(confirm('删除《'+b.title+'》？')){
+          var i=loadBookIndex(); saveBookIndex(i.filter(function(x){ return x.id!==b.id; }));
+          await _idb.set('book:'+b.id, null); renderShelf();
+        }
+      };
+      row.appendChild(t); row.appendChild(open); row.appendChild(del);
+      shelf.appendChild(row);
+    });
+  }
+
+  async function openBook(id, fallbackTitle){
+    var book=await _idb.get('book:'+id);
+    var title=(book&&book.title)||fallbackTitle||'电子书';
+    var text=(book&&book.text)||'';
+    var reader=document.getElementById('ebook-reader');
+    document.getElementById('ebook-reader-title').textContent='《'+title+'》';
+    var box=document.getElementById('ebook-sentences'); box.innerHTML='';
+    var sents=splitSentences(text);
+    if(!sents.length){ box.innerHTML='<span class="meta">正文为空</span>'; }
+    sents.forEach(function(s){
+      var row=document.createElement('div'); row.className='sent';
+      var tx=document.createElement('div'); tx.className='sent-text'; tx.textContent=s;
+      var btn=document.createElement('button'); btn.className='sent-regen'; btn.textContent='🔊'; btn.title='用克隆音朗读这句';
+      btn.onclick=async function(){
+        document.querySelectorAll('#ebook-sentences .sent.playing').forEach(function(e){ e.classList.remove('playing'); });
+        row.classList.add('playing');
+        await regenSentence(s, btn);
+        row.classList.remove('playing');
+      };
+      row.appendChild(tx); row.appendChild(btn);
+      box.appendChild(row);
+    });
+    reader.style.display='block';
+    reader.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  document.getElementById('ebook-upload').addEventListener('click', async function(){
+    var input=document.getElementById('ebook-file');
+    var file=input.files[0];
+    var msg=document.getElementById('ebook-msg');
+    if(!file){ msg.textContent='请先选择 .txt 或 .epub 文件'; return; }
+    var name=file.name.toLowerCase();
+    msg.textContent='解析中…';
+    try{
+      var title, text, type;
+      if(name.endsWith('.txt')){
+        type='txt'; text=await file.text(); title=file.name.replace(/\.txt$/i,'');
+      } else if(name.endsWith('.epub')){
+        type='epub'; var buf=await file.arrayBuffer(); var r=await parseEpub(buf);
+        text=r.text; title=r.title||file.name.replace(/\.epub$/i,'');
+      } else { msg.textContent='仅支持 .txt 和 .epub 格式'; return; }
+      text=(text||'').replace(/\r\n/g,'\n').replace(/\u00a0/g,' ').trim();
+      if(text.length<10){ msg.textContent='解析到的正文太短，可能不是有效电子书'; return; }
+      var book={id:'b'+Date.now()+Math.random().toString(36).slice(2,7), title:title, text:text, type:type, ts:Date.now(), size:file.size};
+      await saveBook(book);
+      input.value='';
+      msg.textContent='已保存：'+title+'（'+text.length+' 字）';
+      renderShelf();
+    }catch(e){ msg.textContent='解析失败：'+(e&&e.message?e.message:e); }
+  });
+
+  document.getElementById('ebook-reader-close').onclick=function(){
+    document.getElementById('ebook-reader').style.display='none';
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+  };
+
+  document.getElementById('ebook-readall').onclick=async function(){
+    var box=document.getElementById('ebook-sentences');
+    var rows=[].slice.call(box.querySelectorAll('.sent'));
+    if(!rows.length) return;
+    this.disabled=true; var self=this; self.textContent='🔊 朗读中…';
+    for(var i=0;i<rows.length;i++){
+      var row=rows[i];
+      var s=row.querySelector('.sent-text').textContent;
+      document.querySelectorAll('#ebook-sentences .sent.playing').forEach(function(e){ e.classList.remove('playing'); });
+      row.classList.add('playing');
+      await cloneSpeakSentence(s);
+      row.classList.remove('playing');
+    }
+    self.disabled=false; self.textContent='🔊 从开头朗读全部';
+  };
+
+  // 首次进入阅读栏时渲染书架
+  renderShelf();
+})();
 </script>
 </body>
 </html>
