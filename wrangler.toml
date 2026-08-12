@@ -2,9 +2,8 @@ name = "tingbook"
 pages_build_output_dir = "."
 compatibility_date = "2024-11-01"
 
-# KV 绑定（TINGBOOK_KV）在生产环境通过 Cloudflare Dashboard 绑定，不写死在 wrangler.toml，
-# 以免占位 ID 导致 Pages 构建失败（Error 8000022）。
-# 本地开发如需 KV，可临时加回：
-#   [[kv_namespaces]]
-#   binding = "TINGBOOK_KV"
-#   id = "你的真实KV命名空间ID(32位十六进制)"
+# KV 绑定（TINGBOOK_KV）：Cloudflare Pages 该项目由 wrangler.toml 管理绑定，
+# 故这里写真实 namespace ID（非占位），推上去后 Cloudflare 据此注入运行时。
+[[kv_namespaces]]
+binding = "TINGBOOK_KV"
+id = "b67754879ac74bd79ec31e7f57bfc57d"
