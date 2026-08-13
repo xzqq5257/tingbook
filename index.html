@@ -83,6 +83,8 @@
   .ebook-sentences .sent-regen.busy{color:#b8902f;cursor:default}
   .ebook-sentences .sent-regen.done{color:#3ec98a}
   .ebook-book{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#0f131a}
+  .ebook-read-status{font-size:12px;color:#f0c674;background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.35);padding:6px 10px;border-radius:8px;margin:8px 0 2px;line-height:1.5;display:none}
+  .ebook-read-status.show{display:block}
   .ebook-book .eb-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ebook-book .eb-meta{font-size:11px;color:var(--muted)}
   .pp-playlist{position:absolute;top:58px;right:10px;width:240px;max-height:62%;overflow-y:auto;background:#11141a;border:1px solid var(--line);border-radius:10px;display:none;z-index:60;box-shadow:0 8px 30px rgba(0,0,0,.5)}
@@ -404,6 +406,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
       <b id="ebook-reader-title" style="color:var(--accent2)"></b>
       <button id="ebook-readall" class="badge" style="background:var(--accent);color:#fff;border:0">🔊 朗读全部</button>
     </div>
+    <div id="ebook-read-status" class="ebook-read-status"></div>
     <div id="ebook-sentences" class="ebook-sentences" style="margin-top:10px"></div>
   </div>
 </section>
@@ -1176,17 +1179,9 @@ async function tingCloneSpeak(){
   const { text, label } = resolveTingText(raw);
   tingStatus.textContent = label + ' · 正在用克隆音色合成…';
   try{
-    const resp = await fetch('/api/ting-read', {
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body: JSON.stringify({ text, nfe_step:16 })
-    });
-    if(!resp.ok){
-      let msg='';
-      try{ const j = await resp.json(); msg = j.error || ''; }catch(e){}
-      throw new Error(msg || ('HTTP '+resp.status));
-    }
-    const blob = await resp.blob();
+    const r = await fetchTingRead(text);
+    if(!r.ok) throw new Error(r.error || '克隆音服务无响应');
+    const blob = r.blob;
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     window.__tingAudio = audio;
@@ -1212,17 +1207,9 @@ async function regenSentence(text, btn){
   if(!text || !text.trim()) return;
   if(btn){ btn.disabled = true; btn.classList.add('busy'); btn.classList.remove('done'); btn.textContent='⏳'; }
   try{
-    const resp = await fetch('/api/ting-read', {
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body: JSON.stringify({ text, nfe_step:16 })
-    });
-    if(!resp.ok){
-      let msg=''; try{ const j = await resp.json(); msg = j.error || ''; }catch(e){}
-      throw new Error(msg || ('HTTP '+resp.status));
-    }
-    const blob = await resp.blob();
-    if(!blob.size) throw new Error('空音频');
+    const r = await fetchTingRead(text);
+    if(!r.ok) throw new Error(r.error || '克隆音服务无响应');
+    const blob = r.blob;
     const url = URL.createObjectURL(blob);
     const a = new Audio(url);
     a.onended = ()=>{ URL.revokeObjectURL(url); if(btn){ btn.classList.remove('busy'); btn.classList.add('done'); btn.textContent='✓'; setTimeout(()=>{ if(btn){ btn.classList.remove('done'); btn.textContent='↻'; } }, 1500); } };
@@ -1488,20 +1475,49 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     return {title:title, text:text};
   }
 
-  // 单句克隆音朗读（用于「朗读全部」顺序播放；失败静默跳过）
+  // ---- 克隆音读取：带超时，绝不无限挂起；失败回退系统嗓音 ----
+  var TING_READ_TIMEOUT = 40000;
+  function fetchTingRead(text){
+    return new Promise(function(resolve){
+      var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+      var t = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, TING_READ_TIMEOUT);
+      var opt = {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({text:text, nfe_step:16})};
+      if(ctrl) opt.signal = ctrl.signal;
+      fetch('/api/ting-read', opt)
+        .then(function(r){
+          if(!r.ok) return r.json().catch(function(){return {};}).then(function(j){ throw new Error(j.error || ('HTTP '+r.status)); });
+          return r.blob();
+        })
+        .then(function(blob){ clearTimeout(t); if(!blob || !blob.size) return resolve({ok:false, error:'空音频'}); resolve({ok:true, blob:blob}); })
+        .catch(function(e){ clearTimeout(t); resolve({ok:false, error:(e&&e.name==='AbortError')?'超时(>'+Math.round(TING_READ_TIMEOUT/1000)+'s)':(e&&e.message||'失败')}); });
+    });
+  }
+  function sysSpeak(text){
+    return new Promise(function(resolve){
+      if(!('speechSynthesis' in window)){ resolve(); return; }
+      try{
+        speechSynthesis.cancel();
+        var u=new SpeechSynthesisUtterance(text);
+        var vs=speechSynthesis.getVoices();
+        var pick=vs.find(function(v){ return /zh|cmn|Chinese|Yue|Han/i.test(v.lang); }) || vs[0];
+        if(pick){ u.voice=pick; u.lang=pick.lang; }
+        u.onend=function(){ resolve(); }; u.onerror=function(){ resolve(); };
+        speechSynthesis.speak(u);
+      }catch(e){ resolve(); }
+    });
+  }
+  // 单句克隆音朗读（带超时；失败时回退系统嗓音，朗读不中断）
   function cloneSpeakSentence(text){
     return new Promise(function(resolve){
       if(!text||!text.trim()){ resolve(); return; }
-      fetch('/api/ting-read', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({text:text, nfe_step:16})})
-        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
-        .then(function(blob){
-          if(!blob.size) throw new Error('空音频');
-          var url=URL.createObjectURL(blob); var a=new Audio(url);
+      fetchTingRead(text).then(function(r){
+        if(r.ok){
+          var url=URL.createObjectURL(r.blob); var a=new Audio(url);
           a.onended=function(){ URL.revokeObjectURL(url); resolve(); };
-          a.onerror=function(){ URL.revokeObjectURL(url); resolve(); };
-          a.play().catch(function(){ URL.revokeObjectURL(url); resolve(); });
-        })
-        .catch(function(){ resolve(); });
+          a.onerror=function(){ URL.revokeObjectURL(url); sysSpeak(text).then(resolve); };
+          a.play().catch(function(){ URL.revokeObjectURL(url); sysSpeak(text).then(resolve); });
+        } else { sysSpeak(text).then(resolve); }
+      });
     });
   }
 
@@ -1594,6 +1610,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
       ebookReading=false;
       if(ebookCurAudio){ try{ ebookCurAudio.pause(); }catch(e){} ebookCurAudio=null; }
       this.disabled=false; this.textContent='🔊 从开头朗读全部';
+      var se=document.getElementById('ebook-read-status'); if(se) se.classList.remove('show');
       document.querySelectorAll('#ebook-sentences .sent.playing').forEach(function(e){ e.classList.remove('playing'); });
       return;
     }
@@ -1603,10 +1620,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     var cache={}, inflight={};
     function fetchBlob(i){
       if(i<0||i>=texts.length) return Promise.resolve(null);
-      return fetch('/api/ting-read',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:texts[i],nfe_step:16})})
-        .then(function(r){ if(!r.ok) return null; return r.blob(); })
-        .then(function(b){ return (b&&b.size)?b:null; })
-        .catch(function(){ return null; });
+      return fetchTingRead(texts[i]).then(function(r){ return r.ok ? r.blob : null; });
     }
     function ensure(i, depth){
       for(var k=1;k<=depth;k++){ var j=i+k; if(j<texts.length && !cache[j] && !inflight[j]){ inflight[j]=fetchBlob(j).then(function(b){ cache[j]=b; inflight[j]=null; return b; }); } }
@@ -1624,13 +1638,21 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
       document.querySelectorAll('#ebook-sentences .sent.playing').forEach(function(e){ e.classList.remove('playing'); });
       if(i>=0 && rows[i]) rows[i].classList.add('playing');
     }
+    var statusEl=document.getElementById('ebook-read-status');
+    function setStatus(msg, warn){ if(statusEl){ statusEl.textContent=msg; statusEl.classList.toggle('show', !!msg); statusEl.style.color = warn?'#f08a8a':'#f0c674'; } }
+    setStatus('🔊 正在用你的克隆音朗读（若服务无响应会自动改用系统嗓音）', false);
+    var cloneDown=false;
     for(var i=0;i<texts.length;i++){
       if(!ebookReading) break;
-      ensure(i, 3);  // 后台并行预取后 3 句，消除句间停顿
+      ensure(i, 2);  // 后台并行预取后 2 句
       var blob=cache[i] || await (inflight[i] || fetchBlob(i));
       cache[i]=blob;
       highlight(i);
-      await playBlob(blob);
+      if(blob){ await playBlob(blob); }
+      else {
+        if(!cloneDown){ cloneDown=true; setStatus('⚠️ 克隆音服务暂时无响应，已改用系统嗓音朗读（可在「我的」检查音色，或重启语音服务）', true); }
+        await sysSpeak(texts[i]);   // 克隆失败 → 系统嗓音兜底，朗读不中断
+      }
       ebookCurAudio=null;
       if(!ebookReading) break;
     }

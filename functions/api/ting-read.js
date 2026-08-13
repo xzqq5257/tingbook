@@ -55,16 +55,23 @@ export const onRequestPost = async ({ request, env }) => {
 
   const payload = JSON.stringify(payloadObj);
 
+  // 上游 F5 推理在 CPU 上可能很慢，给它一个上限；超时/异常都返回清晰 JSON，
+  // 避免 Cloudflare 网关把请求拖到平台wall上限而返回空响应（前端会一直等 → 卡顿）。
+  const ctrl = new AbortController();
+  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 38000);
   let upstream;
   try {
     upstream = await fetch(base.replace(/\/+$/, "") + "/generate", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: payload,
+      signal: ctrl.signal,
     });
   } catch (e) {
-    return json({ ok: false, error: "上游 F5 服务不可达：" + e.message }, 502);
+    clearTimeout(to);
+    return json({ ok: false, error: "上游 F5 服务不可达或无响应（" + (e && e.name === "AbortError" ? "超时" : e.message) + "）" }, 504);
   }
+  clearTimeout(to);
 
   if (!upstream.ok) {
     let msg = "";
