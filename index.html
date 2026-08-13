@@ -450,11 +450,6 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
       </div>
     </div>
   </div>
-  <div class="ltyv-section">
-    <div class="ltyv-title">🎙 Listen To Your Voice</div>
-    <div class="ltyv-desc">基于参考音频 <b>wuyongss.wav</b> 的声纹，已接入 F5-TTS / GPT-SoVITS <b>真实语音克隆引擎</b>（集成于仓库 <code>tts/</code> 目录，可在带 GPU 的机器上一键生成真实可读语音）。下方「原声试听」为<b>真实人声</b>；《葬花吟》当前为<b>参数化音色演示</b>，真实克隆朗读请运行 <code>tts/generate_all.py</code> 后同步上线；全部 28 本有声书亦由同一声纹生成。</div>
-    <div id="ltyv-list"></div>
-  </div>
   <div id="poly-panel" class="card" style="display:none">
     <div class="row"><div class="title">📝 多音字校准</div><button id="poly-close" class="badge">收起</button></div>
     <p class="meta">规则仅替换语音“读音”，字幕仍显示原字。勾选启用并保存后，对新生成的内容立即生效（已生成的 28 篇不受影响）。</p>
@@ -1077,44 +1072,6 @@ if(listEl){ BOOKS.forEach((b,i)=>{
   listEl.appendChild(card);
   });
 }
-
-// ---------------- Listen To Your Voice ----------------
-const LTYV = [
-  { title:"Listen To Your Voice · 原声试听", duration:13,
-    text:"（wuyongss 原始参考音频，即被克隆的真实声音）",
-    file:"listen-to-your-voice/ltyv_reference.wav" },
-  { title:"Listen To Your Voice 演示 ·《葬花吟》(参数化)", duration:110,
-    text:"花谢花飞花满天，红消香断有谁怜。\n游丝软系飘春榭，落絮轻沾扑绣帘。\n闺中女儿惜春暮，愁绪满怀无释处。\n手把花锄出绣帘，忍踏落花来复去。\n柳丝榆荚自芳菲，不管桃飘与李飞。\n桃李明年能再发，明年闺中知有谁？\n三月香巢已垒成，梁间燕子太无情！\n明年花发虽可啄，却不道人去梁空巢也倾。\n一年三百六十日，风刀霜剑严相逼。\n明媚鲜妍能几时，一朝飘泊难寻觅。\n花开易见落难寻，阶前闷杀葬花人。\n独倚花锄泪暗洒，洒上空枝见血痕。\n杜鹃无语正黄昏，荷锄归去掩重门。\n青灯照壁人初睡，冷雨敲窗被未温。\n怪奴底事倍伤神，半为怜春半恼春。\n怜春忽至恼忽去，至又无言去不闻。\n昨宵庭外悲歌发，知是花魂与鸟魂？\n花魂鸟魂总难留，鸟自无言花自羞。\n愿奴胁下生双翼，随花飞到天尽头！\n天尽头，何处有香丘？\n未若锦囊收艳骨，一抔净土掩风流。\n质本洁来还洁去，强于污淖陷渠沟。\n尔今死去侬收葬，未卜侬身何日丧？\n侬今葬花人笑痴，他年葬侬知是谁？\n试看春残花渐落，便是红颜老死时。\n一朝春尽红颜老，花落人亡两不知！",
-    file:"listen-to-your-voice/ltyv_read_zanghuayin.wav" }
-];
-const ltyvEl = document.getElementById('ltyv-list');
-LTYV.forEach((b,i)=>{
-  if(isHidden(b.file)) return;
-  const card=document.createElement('div'); card.className='card';
-  const dl=document.createElement('a');
-  dl.className='badge'; dl.textContent='⬇ 试听文件'; dl.href=b.file; dl.setAttribute('download', b.title + (b.file.endsWith('.wav')?'.wav':'.mp3'));
-  card.innerHTML=`
-    <div class="row">
-      <div><div class="title">🎙 ${b.title}</div><div class="meta">时长 ${b.duration} 秒 · Listen To Your Voice</div></div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="play-btn">▶ 试听</button>
-        <button class="del-btn" title="从我的听单移除">🗑</button>
-      </div>
-    </div>`;
-  card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
-  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
-  card.querySelector('.del-btn').onclick=async ()=>{
-    if(!confirm('永久删除《'+b.title+'》？\n这将从服务器删除音频并移除播放条目，且无法撤销。')) return;
-    const ok = await deleteBackend(b.file);   // 先同步删除 GitHub 仓库文件
-    if(ok){ hideFile(b.file); card.remove(); } // 成功后再隐藏本地视图
-    else alert('后台删除失败：未删除服务器文件。可稍后重试，或到仓库手动删除。');
-  };
-  ltyvEl.appendChild(card);
-});
-
-try{ const sv = localStorage.getItem(SPEED_KEY); if(sv) document.getElementById('pp-speed').value = sv; }catch(e){}
-loadProgress().then(showResume);
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ loadProgress().then(showResume); } });
 
 // ---------------- 随机播放 ----------------
 function shuffleArray(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
