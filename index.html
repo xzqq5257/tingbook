@@ -310,9 +310,67 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 .btn.ghost{background:#eee;color:#5b4a2a}
 .btn.danger{background:#c0392b;color:#fff}
 .hidden{display:none!important}
+
+  /* ============ 统一亮色主题覆盖（全站） ============ */
+  html{ background:var(--bg); }
+  body{ background:transparent!important; }
+  #bg-layer{ position:fixed; inset:0; z-index:-2; background:var(--bg);
+    background-size:cover; background-position:center; background-repeat:no-repeat; transition:background .3s; }
+  /* 音乐栏：去暗渐变，统一亮色 */
+  #tab-music{ background:var(--bg)!important; color:var(--fg)!important; }
+  #tab-music .sec-head{ color:var(--fg)!important; }
+  #tab-music .cat-chips .chip{ background:#fff!important; border-color:var(--line)!important; color:var(--muted)!important; }
+  #tab-music .cat-chips .chip.active{ background:var(--accent)!important; color:#fff!important; border-color:var(--accent)!important; }
+  .m-hero .m-info h2{ color:var(--fg)!important; }
+  .m-hero .m-info p{ color:var(--muted)!important; }
+  .album .a-title{ color:var(--fg)!important; }
+  .album .a-cover::after{ background:linear-gradient(0deg,rgba(0,0,0,.30),transparent 62%)!important; }
+  /* 播放页（含音乐上下文）统一亮色 */
+  #player-page.music{ background:linear-gradient(180deg,#f7f3ec,#efe9df)!important; color:var(--fg)!important; }
+  #player-page.music .pp-top{ border-bottom:1px solid var(--line)!important; }
+  #player-page.music .pp-title{ color:var(--fg)!important; }
+  #player-page.music .pp-back,#player-page.music .pp-list-btn{ border-color:var(--line)!important; color:var(--fg)!important; }
+  #player-page.music .pp-sub .sent{ color:var(--muted)!important; }
+  #player-page.music .pp-sub .sent.active{ background:rgba(184,144,47,.16)!important; color:#2a2113!important; font-weight:700!important; }
+  #player-page.music .pp-sub .sent-regen{ color:var(--accent)!important; }
+  #player-page.music .pp-controls{ border-top:1px solid var(--line)!important; }
+  #player-page.music .pp-btns button{ background:var(--accent)!important; }
+  #player-page.music .pp-btns #pp-restart{ background:transparent!important; border:1px solid var(--accent)!important; color:var(--accent)!important; }
+  #player-page.music .vinyl{ display:block!important; }
+  .pp-sub .sent.active{ background:rgba(184,144,47,.16)!important; color:#2a2113!important; font-weight:700!important; }
+  .pp-sub .sent-regen{ color:var(--accent)!important; }
+  /* 全局正在播放条：亮色 */
+  #np-bar{ background:rgba(255,255,255,.97)!important; color:var(--fg)!important;
+    border-top:1px solid var(--line)!important; box-shadow:0 -4px 16px rgba(0,0,0,.08)!important; }
+  .np-vinyl{ background:conic-gradient(#5b4a2a 0 50%,#2a2113 0 50%)!important;
+    box-shadow:inset 0 0 0 3px var(--accent),0 0 0 2px rgba(0,0,0,.06)!important; }
+  .np-sub{ color:var(--muted)!important; }
+  .np-btn{ color:var(--fg)!important; }
+  /* 续播条亮色 */
+  #resume-bar{ background:#fff!important; box-shadow:0 -4px 16px rgba(0,0,0,.12)!important; }
+  /* 徽章 / 输入 / 列表亮色 */
+  .badge{ background:#efe9df!important; color:var(--fg)!important; }
+  .book-cover .badge{ background:rgba(0,0,0,.45)!important; color:#fff!important; }
+  .inp{ background:#fff!important; color:var(--fg)!important; }
+  .pp-playlist{ background:#fff!important; border:1px solid var(--line)!important; }
+  .pp-extra select{ background:#fff!important; color:var(--fg)!important; }
+  /* 电子书「听书」面板亮色 */
+  #ebook-reader.reader-ts{ background:#f5f0e6!important; color:#33302a!important; }
+  .ebook-book{ background:#fff!important; }
+  .ebook-book .eb-title{ color:var(--fg)!important; }
+  .ebook-sentences .sent.playing{ background:rgba(184,144,47,.16)!important; color:#2a2113!important; font-weight:600!important; }
+  .ebook-sentences .sent-regen{ background:#efe9df!important; color:var(--accent)!important; }
+  .ebook-sentences .sent-regen:hover{ color:var(--accent)!important; background:rgba(184,144,47,.18)!important; }
+  /* 背景预设色块 */
+  .bg-presets{ display:flex; gap:10px; flex-wrap:wrap; }
+  .bg-sw{ width:56px; height:56px; border-radius:12px; border:2px solid var(--line); cursor:pointer;
+    font-size:11px; color:#5b4a2a; font-weight:600; box-shadow:0 2px 6px rgba(0,0,0,.08); }
+  .bg-sw:hover{ border-color:var(--accent); }
+  .bg-sw.active{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(184,144,47,.35); }
 </style>
 </head>
 <body>
+<div id="bg-layer"></div>
 <header class="cover">
   <div class="cover-art">
     <svg class="wave" viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true">
@@ -497,6 +555,19 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
           <span id="voice-msg" class="muted"></span>
         </div>
         <div id="voice-list"></div>
+      </div>
+      <div class="card-box">
+        <h3>🎨 外观 · 背景</h3>
+        <p class="muted">选择预设背景，或上传自定义图片（仅保存在本机浏览器，不上传服务器）；刷新后依然生效。</p>
+        <div id="bg-presets" class="bg-presets"></div>
+        <div class="vrow" style="margin-top:12px">
+          <label class="btn" style="display:inline-flex;align-items:center;cursor:pointer">
+            🖼 上传背景图
+            <input id="bg-upload" type="file" accept="image/*" style="display:none">
+          </label>
+          <button id="bg-reset" class="btn ghost">恢复默认</button>
+          <span id="bg-msg" class="muted"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -1741,6 +1812,55 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   initReader();
   // 首次进入阅读栏时渲染书架
   renderShelf();
+})();
+
+// ---------------- 自定义背景（仅本机持久化，不上传服务器） ----------------
+(function(){
+  var bgLayer=document.getElementById('bg-layer');
+  if(!bgLayer) return;
+  var BGK='tingbook_bg_v1';
+  var presets=[
+    {name:'暖纸', css:'linear-gradient(180deg,#f4f1ea,#efe9df)'},
+    {name:'青瓷', css:'linear-gradient(160deg,#eaf3f0,#dcebe6)'},
+    {name:'暮光', css:'linear-gradient(160deg,#fbeede,#f3dcd0)'},
+    {name:'樱粉', css:'linear-gradient(160deg,#fdeef3,#f6e0e9)'},
+    {name:'薄暮', css:'linear-gradient(160deg,#eef1f6,#dfe6f0)'}
+  ];
+  function applyBg(val){
+    if(!val){ bgLayer.style.background=''; bgLayer.style.backgroundImage=''; try{localStorage.removeItem(BGK);}catch(e){} return; }
+    if(val.indexOf('gradient')>=0){
+      bgLayer.style.backgroundImage='none'; bgLayer.style.background=val;
+    } else {
+      bgLayer.style.backgroundImage='url('+val+')';
+    }
+    try{localStorage.setItem(BGK,val);}catch(e){}
+  }
+  var pc=document.getElementById('bg-presets');
+  function markActive(val){
+    Array.prototype.forEach.call(pc.children, function(c){
+      c.classList.toggle('active', !!val && c.dataset.val===val);
+    });
+  }
+  presets.forEach(function(p){
+    var b=document.createElement('button'); b.className='bg-sw'; b.type='button';
+    b.textContent=p.name; b.style.background=p.css; b.dataset.val=p.css; b.title=p.name;
+    b.onclick=function(){ applyBg(p.css); markActive(p.css); };
+    pc.appendChild(b);
+  });
+  var up=document.getElementById('bg-upload');
+  if(up) up.onchange=function(){
+    var f=up.files&&up.files[0]; if(!f) return;
+    if(f.size>4*1024*1024){ document.getElementById('bg-msg').textContent='图片过大（>4MB），请压缩后重试'; return; }
+    var r=new FileReader();
+    r.onload=function(){ applyBg(r.result); markActive(''); document.getElementById('bg-msg').textContent='已应用自定义背景'; };
+    r.readAsDataURL(f);
+  };
+  var rs=document.getElementById('bg-reset');
+  if(rs) rs.onclick=function(){ applyBg(''); markActive(''); document.getElementById('bg-msg').textContent='已恢复默认'; };
+  var saved='';
+  try{ saved=localStorage.getItem(BGK)||''; }catch(e){}
+  if(saved){ applyBg(saved); }
+  markActive(saved);
 })();
 </script>
 </body>
