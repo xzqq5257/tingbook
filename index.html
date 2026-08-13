@@ -242,6 +242,49 @@
   .profile .p-name{ font-size:18px; font-weight:800; }
   .profile .p-sub{ font-size:12px; opacity:.88; }
   .mine-wrap{ padding-top:0; }
+
+/* 电子书书架 */
+.ebook-upload-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 14px 0; }
+.ebook-shelf-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:12px 14px 16px; }
+.ebook-cover{ position:relative; aspect-ratio:3/4; border-radius:10px; color:#fff; padding:10px; display:flex; flex-direction:column; justify-content:flex-end; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.12); overflow:hidden; }
+.ebook-cover .ec-title{ font-weight:700; font-size:14px; line-height:1.3; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.ebook-cover .ec-meta{ font-size:11px; opacity:.9; margin-top:4px; }
+.ebook-cover .ec-del{ position:absolute; top:6px; right:6px; width:24px; height:24px; border:none; border-radius:50%; background:rgba(0,0,0,.4); color:#fff; font-size:12px; cursor:pointer; }
+.ebook-empty{ color:var(--muted); padding:20px 4px; text-align:center; }
+.ro-top{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.ro-top .badge{ margin-left:auto; }
+.ro-top b{ flex:1; }
+/* 听书覆盖层（克隆音逐句朗读） */
+#ebook-reader.reader-ts{ position:fixed; inset:0; z-index:215; background:#0f131a; color:#cfd5e0; overflow:auto; padding:14px; padding-top:calc(14px + env(safe-area-inset-top)); padding-bottom:calc(14px + env(safe-area-inset-bottom)); }
+.reader-ts .ebook-sentences{ max-height:none; height:auto; }
+/* 全屏文本阅读器（微信读书风） */
+.reader-view{ display:none; position:fixed; inset:0; z-index:200; flex-direction:column; background:#f5f0e6; color:#33302a; }
+.reader-view.show{ display:flex; }
+.reader-view[data-theme="sepia"]{ background:#e9dcc0; color:#4a3f2a; }
+.reader-view[data-theme="night"]{ background:#14151b; color:#cfcfd8; }
+.rv-top{ display:flex; align-items:center; gap:6px; padding:10px 12px; padding-top:calc(10px + env(safe-area-inset-top)); }
+.rv-ico{ background:none; border:none; font-size:22px; color:inherit; cursor:pointer; line-height:1; }
+.rv-title{ flex:1; text-align:center; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rv-progress{ height:2px; background:rgba(128,128,128,.25); }
+.rv-progress i{ display:block; height:100%; width:0; background:var(--accent); transition:width .12s; }
+.reader-view[data-theme="night"] .rv-progress i{ background:var(--nc); }
+.rv-stage{ flex:1; overflow:hidden; padding:18px 20px; }
+.rv-page{ height:100%; overflow:auto; line-height:1.95; text-align:justify; font-size:19px; }
+.rv-page p{ margin:0 0 1.1em; }
+.rv-zones{ display:flex; height:64px; }
+.rv-z{ flex:1; background:none; border:none; }
+.rv-bottom{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 14px calc(8px + env(safe-area-inset-bottom)); border-top:1px solid rgba(128,128,128,.2); }
+.rv-pinfo{ font-size:12px; opacity:.6; }
+.rv-act{ background:var(--accent); color:#fff; border:none; border-radius:18px; padding:7px 16px; font-size:13px; cursor:pointer; }
+.reader-view[data-theme="night"] .rv-act{ background:var(--nc); }
+.rv-panel{ display:none; padding:14px 16px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid rgba(128,128,128,.2); background:rgba(0,0,0,.04); }
+.reader-view[data-theme="night"] .rv-panel{ background:rgba(255,255,255,.04); }
+.rv-panel.show{ display:block; }
+.rv-row{ display:flex; align-items:center; gap:10px; margin-bottom:12px; font-size:14px; }
+.rv-btn{ border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; border-radius:8px; padding:4px 12px; cursor:pointer; }
+.rv-theme{ border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
+.rv-theme.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+.reader-view[data-theme="night"] .rv-theme.active{ background:var(--nc); border-color:var(--nc); }
 </style>
 <style id="tab-css">
 /* 三栏 Tab 框架 */
@@ -343,85 +386,40 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 </nav>
 <main>
 <section id="tab-reading" class="tab-panel active">
-
-<div class="lib-bar">
-  <button id="play-all">▶ 一键播放全部</button>
-  <button id="continue-all" class="ghost" style="display:none">⏯ 继续播放</button>
-  <button id="shuffle-all">🔀 随机播放</button>
-  <button id="stop-all" class="ghost" style="display:none">⏹ 停止</button>
-  <button id="voice-swap" class="ghost">🎙 一键换声</button>
-  <button id="poly-btn" class="ghost">📝 多音字校准</button>
-  <input id="voice-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg" style="display:none" title="上传一段清晰的人声作为后续朗读的参考音"/>
-  <button id="now-playing" class="ghost" style="display:none">🎵 正在播放</button>
-  <span class="playing-all" id="playing-all-status"></span>
-</div>
-<div id="resume-card" class="card">
-  <div class="row"><div><div class="title" id="resume-title">继续播放</div><div class="meta" id="resume-meta"></div></div>
-    <button id="resume-go">▶ 继续播放</button></div>
-</div>
-<div class="sec-head">📚 有声书库 <span class="more" id="book-count"></span></div>
-<div class="cat-chips" id="cat-chips"></div>
-<div id="list"></div>
-<div id="restore-row" style="display:none;margin:4px 14px 14px"><button id="restore-hidden" class="play-btn">♻ 恢复已删除条目</button></div>
-<div id="poly-panel" class="card" style="display:none">
-  <div class="row"><div class="title">📝 多音字校准</div><button id="poly-close" class="badge">收起</button></div>
-  <p class="meta">规则仅替换语音“读音”，字幕仍显示原字。勾选启用并保存后，对新生成的内容立即生效（已生成的 28 篇不受影响）。</p>
-  <div id="poly-rules"></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-    <input id="poly-from" class="inp" placeholder="原字/词，如 银行"/>
-    <input id="poly-to" class="inp" placeholder="同音替换，如 银航"/>
-    <button id="poly-add" class="play-btn">+ 添加规则</button>
-  </div>
-  <div style="margin-top:8px"><button id="poly-save" class="play-btn">💾 保存规则</button><span id="poly-msg" class="meta" style="margin-left:8px"></span></div>
-</div>
-<div class="hint">封面秒开，点哪篇才加载哪篇音频（音频托管在 GitHub Pages，按需流式播放）。带同步字幕、倍速、定时关闭与断点续播。</div>
-<div class="ltyv-section" id="ting-wo-du">
-  <div class="ltyv-title">🗣 听我读 · 即输即读</div>
-  <div class="ltyv-desc">输入任意文字，或输入篇名（如「将进酒」「朗读 岳阳楼记」），AI 自动识别后用中文语音朗读。<b>🖥 系统嗓音</b>：浏览器内置语音，零延迟；<b>🎙 克隆音</b>：调用 F5-TTS 用你的参考音（listen-to-your-voice/ltyv_reference.wav）实时合成，真正克隆音色。克隆音需后台已部署 F5 服务，若未配置会自动退回系统嗓音。</div>
-  <div style="margin-top:10px">
-    <textarea id="ting-input" class="inp" rows="3" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="例如：朗读《将进酒》  或  直接粘贴你想听的文字…"></textarea>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
-      <div style="display:inline-flex;border:1px solid #cbb892;border-radius:8px;overflow:hidden">
-        <button id="ting-mode-system" class="mode-btn" style="border:0;background:#b8902f;color:#fff">🖥 系统嗓音</button>
-        <button id="ting-mode-clone" class="mode-btn" style="border:0;border-left:1px solid #cbb892;background:transparent;color:#5b4a2a">🎙 克隆音</button>
-      </div>
-      <select id="ting-voice" class="inp" style="min-width:160px"></select>
-      <button id="ting-play" class="play-btn">🔊 朗读</button>
-      <button id="ting-stop" class="badge">⏹ 停止</button>
-      <span id="ting-status" class="meta"></span>
-    </div>
-  </div>
-</div>
-
-<div class="ltyv-section" id="ebook-section">
-  <div class="ltyv-title">📚 我的书架 · 上传电子书朗读</div>
-  <div class="ltyv-desc">上传 <b>.txt</b> 或 <b>.epub</b> 电子书，自动解析正文并<b>保存到本机</b>，随时点开用克隆音逐句朗读。文件仅存于你当前浏览器，不会上传到服务器。</div>
-  <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-    <input id="ebook-file" type="file" accept=".txt,.epub,text/plain,application/epub+zip" class="inp" style="flex:1;min-width:200px"/>
-    <button id="ebook-upload" class="play-btn">📥 解析并保存</button>
+  <div class="sec-head">📚 我的书架 <span class="more" id="ebook-count"></span></div>
+  <div class="ebook-upload-row">
+    <input id="ebook-file" type="file" accept=".txt,.epub,text/plain,application/epub+zip" class="inp" style="flex:1;min-width:180px"/>
+    <button id="ebook-upload" class="play-btn">📥 上传电子书</button>
     <span id="ebook-msg" class="meta"></span>
   </div>
-  <div id="ebook-shelf" style="margin-top:12px"></div>
-  <div id="ebook-reader" style="display:none;margin-top:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+  <p class="hint">支持 .txt / .epub，解析后保存在本机浏览器，可随时打开阅读，也能用你的克隆音「听书」。</p>
+  <div id="ebook-shelf" class="ebook-shelf-grid"></div>
+  <div id="ebook-reader" class="reader-ts" style="display:none;margin-top:14px">
+    <div class="ro-top">
+      <button id="ebook-reader-close" class="badge">✕ 关闭</button>
       <b id="ebook-reader-title" style="color:var(--accent2)"></b>
-      <div>
-        <button id="ebook-readall" class="badge" style="background:var(--accent);color:#fff;border:0">🔊 从开头朗读全部</button>
-        <button id="ebook-reader-close" class="badge">✕ 关闭</button>
-      </div>
+      <button id="ebook-readall" class="badge" style="background:var(--accent);color:#fff;border:0">🔊 朗读全部</button>
     </div>
-    <div id="ebook-sentences" class="ebook-sentences" style="margin-top:10px;max-height:60vh;overflow:auto"></div>
+    <div id="ebook-sentences" class="ebook-sentences" style="margin-top:10px"></div>
   </div>
-</div>
-
-<div class="ltyv-section">
-  <div class="ltyv-title">🎙 Listen To Your Voice</div>
-  <div class="ltyv-desc">基于参考音频 <b>wuyongss.wav</b> 的声纹，已接入 F5-TTS / GPT-SoVITS <b>真实语音克隆引擎</b>（集成于仓库 <code>tts/</code> 目录，可在带 GPU 的机器上一键生成真实可读语音）。下方「原声试听」为<b>真实人声</b>；《葬花吟》当前为<b>参数化音色演示</b>，真实克隆朗读请运行 <code>tts/generate_all.py</code> 后同步上线；全部 28 本有声书亦由同一声纹生成。</div>
-  <div id="ltyv-list"></div>
-</div>
-
 </section>
+
 <section id="tab-music" class="tab-panel">
+  <div class="lib-bar">
+    <button id="play-all">▶ 一键播放全部</button>
+    <button id="continue-all" class="ghost" style="display:none">⏯ 继续播放</button>
+    <button id="shuffle-all">🔀 随机播放</button>
+    <button id="stop-all" class="ghost" style="display:none">⏹ 停止</button>
+    <button id="voice-swap" class="ghost">🎙 一键换声</button>
+    <button id="poly-btn" class="ghost">📝 多音字校准</button>
+    <input id="voice-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg" style="display:none" title="上传一段清晰的人声作为后续朗读的参考音"/>
+    <button id="now-playing" class="ghost" style="display:none">🎵 正在播放</button>
+    <span class="playing-all" id="playing-all-status"></span>
+  </div>
+  <div id="resume-card" class="card">
+    <div class="row"><div><div class="title" id="resume-title">继续播放</div><div class="meta" id="resume-meta"></div></div>
+      <button id="resume-go">▶ 继续播放</button></div>
+  </div>
   <div class="m-hero">
     <div class="m-cover" id="m-hero-cover"></div>
     <div class="m-info">
@@ -434,7 +432,43 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   <div class="sec-head">📀 有声专辑 <span class="more" id="music-count"></span></div>
   <div class="cat-chips" id="music-chips"></div>
   <div class="album-grid" id="album-grid"></div>
+  <div id="restore-row" style="display:none;margin:4px 14px 14px"><button id="restore-hidden" class="play-btn">♻ 恢复已删除条目</button></div>
+  <div class="ltyv-section" id="ting-wo-du">
+    <div class="ltyv-title">🗣 听我读 · 即输即读</div>
+    <div class="ltyv-desc">输入任意文字，或输入篇名（如「将进酒」「朗读 岳阳楼记」），AI 自动识别后用中文语音朗读。<b>🖥 系统嗓音</b>：浏览器内置语音，零延迟；<b>🎙 克隆音</b>：调用 F5-TTS 用你的参考音（listen-to-your-voice/ltyv_reference.wav）实时合成，真正克隆音色。克隆音需后台已部署 F5 服务，若未配置会自动退回系统嗓音。</div>
+    <div style="margin-top:10px">
+      <textarea id="ting-input" class="inp" rows="3" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="例如：朗读《将进酒》  或  直接粘贴你想听的文字…"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+        <div style="display:inline-flex;border:1px solid #cbb892;border-radius:8px;overflow:hidden">
+          <button id="ting-mode-system" class="mode-btn" style="border:0;background:#b8902f;color:#fff">🖥 系统嗓音</button>
+          <button id="ting-mode-clone" class="mode-btn" style="border:0;border-left:1px solid #cbb892;background:transparent;color:#5b4a2a">🎙 克隆音</button>
+        </div>
+        <select id="ting-voice" class="inp" style="min-width:160px"></select>
+        <button id="ting-play" class="play-btn">🔊 朗读</button>
+        <button id="ting-stop" class="badge">⏹ 停止</button>
+        <span id="ting-status" class="meta"></span>
+      </div>
+    </div>
+  </div>
+  <div class="ltyv-section">
+    <div class="ltyv-title">🎙 Listen To Your Voice</div>
+    <div class="ltyv-desc">基于参考音频 <b>wuyongss.wav</b> 的声纹，已接入 F5-TTS / GPT-SoVITS <b>真实语音克隆引擎</b>（集成于仓库 <code>tts/</code> 目录，可在带 GPU 的机器上一键生成真实可读语音）。下方「原声试听」为<b>真实人声</b>；《葬花吟》当前为<b>参数化音色演示</b>，真实克隆朗读请运行 <code>tts/generate_all.py</code> 后同步上线；全部 28 本有声书亦由同一声纹生成。</div>
+    <div id="ltyv-list"></div>
+  </div>
+  <div id="poly-panel" class="card" style="display:none">
+    <div class="row"><div class="title">📝 多音字校准</div><button id="poly-close" class="badge">收起</button></div>
+    <p class="meta">规则仅替换语音“读音”，字幕仍显示原字。勾选启用并保存后，对新生成的内容立即生效（已生成的 28 篇不受影响）。</p>
+    <div id="poly-rules"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <input id="poly-from" class="inp" placeholder="原字/词，如 银行"/>
+      <input id="poly-to" class="inp" placeholder="同音替换，如 银航"/>
+      <button id="poly-add" class="play-btn">+ 添加规则</button>
+    </div>
+    <div style="margin-top:8px"><button id="poly-save" class="play-btn">💾 保存规则</button><span id="poly-msg" class="meta" style="margin-left:8px"></span></div>
+  </div>
+  <p class="hint">封面秒开，点哪篇才加载哪篇音频（音频托管在 GitHub Pages，按需流式播放）。带同步字幕、倍速、定时关闭与断点续播。</p>
 </section>
+
 <section id="tab-mine" class="tab-panel">
   <div class="mine-wrap">
     <div id="mine-login" class="card-box">
@@ -465,6 +499,28 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     </div>
   </div>
 </section>
+<div id="reader-view" class="reader-view">
+  <div class="rv-top">
+    <button id="rv-back" class="rv-ico">‹</button>
+    <div class="rv-title" id="rv-title"></div>
+    <button id="rv-aa" class="rv-ico">Aa</button>
+  </div>
+  <div class="rv-progress"><i id="rv-bar"></i></div>
+  <div class="rv-stage"><article class="rv-page" id="rv-page"></article></div>
+  <div class="rv-zones">
+    <button class="rv-z" id="rv-prev" aria-label="上一页"></button>
+    <button class="rv-z" id="rv-menu" aria-label="菜单"></button>
+    <button class="rv-z" id="rv-next" aria-label="下一页"></button>
+  </div>
+  <div class="rv-bottom">
+    <span class="rv-pinfo" id="rv-pinfo"></span>
+    <button id="rv-listen" class="rv-act">🔊 听书</button>
+  </div>
+  <div class="rv-panel" id="rv-panel">
+    <div class="rv-row"><span>字号</span><button id="rv-fd" class="rv-btn">A-</button><span id="rv-fs">19</span><button id="rv-fu" class="rv-btn">A+</button></div>
+    <div class="rv-row"><span>主题</span><button class="rv-theme" data-t="day">☀ 白天</button><button class="rv-theme" data-t="sepia">🌿 护眼</button><button class="rv-theme" data-t="night">🌙 夜间</button></div>
+  </div>
+</div>
 </main>
 <div id="player-page">
   <div class="pp-top">
@@ -996,7 +1052,7 @@ const COVER_GRADIENTS=[
   'linear-gradient(135deg,#56c2c9,#2a7a82)',
   'linear-gradient(135deg,#d98ac0,#8a3a72)'
 ];
-BOOKS.forEach((b,i)=>{
+if(listEl){ BOOKS.forEach((b,i)=>{
   if(isHidden(b.file)) return;
   const card=document.createElement('div'); card.className='card'; card.dataset.title=b.title;
   const dl = document.createElement('a');
@@ -1019,7 +1075,8 @@ BOOKS.forEach((b,i)=>{
     else alert('后台删除失败：未删除服务器文件。可稍后重试，或到仓库手动删除。');
   };
   listEl.appendChild(card);
-});
+  });
+}
 
 // ---------------- Listen To Your Voice ----------------
 const LTYV = [
@@ -1489,25 +1546,21 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 
   function renderShelf(){
     var shelf=document.getElementById('ebook-shelf');
+    var cnt=document.getElementById('ebook-count');
     var idx=loadBookIndex();
-    if(!idx.length){ shelf.innerHTML='<span class="meta">书架还是空的，上传一本电子书开始吧。</span>'; return; }
+    if(cnt) cnt.textContent = idx.length ? (idx.length+' 本') : '';
+    if(!idx.length){ shelf.innerHTML='<div class="ebook-empty">书架还是空的，上传一本电子书开始吧 📚</div>'; return; }
     shelf.innerHTML='';
     idx.forEach(function(b){
-      var row=document.createElement('div'); row.className='ebook-book';
-      var t=document.createElement('div'); t.className='eb-title';
-      t.innerHTML='<b>'+esc(b.title)+'</b> <span class="eb-meta">· '+b.type.toUpperCase()+' · '+fmtSize(b.size)+'</span>';
-      var open=document.createElement('button'); open.className='badge'; open.textContent='📖 打开';
-      open.style.background='var(--accent)'; open.style.color='#fff'; open.style.border='0';
-      open.onclick=function(){ openBook(b.id, b.title); };
-      var del=document.createElement('button'); del.className='badge'; del.textContent='🗑 删除';
-      del.onclick=async function(){
-        if(confirm('删除《'+b.title+'》？')){
-          var i=loadBookIndex(); saveBookIndex(i.filter(function(x){ return x.id!==b.id; }));
-          await _idb.set('book:'+b.id, null); renderShelf();
-        }
-      };
-      row.appendChild(t); row.appendChild(open); row.appendChild(del);
-      shelf.appendChild(row);
+      var card=document.createElement('div'); card.className='ebook-cover';
+      var gi=idx.indexOf(b);
+      card.style.background=COVER_GRADIENTS[gi % COVER_GRADIENTS.length];
+      card.innerHTML='<div class="ec-title">'+esc(b.title)+'</div><div class="ec-meta">'+b.type.toUpperCase()+' · '+fmtSize(b.size)+'</div>';
+      card.onclick=function(){ openReader(b.id, b.title); };
+      var del=document.createElement('button'); del.className='ec-del'; del.textContent='🗑'; del.title='删除';
+      del.onclick=function(e){ e.stopPropagation(); if(confirm('删除《'+b.title+'》？')){ var i=loadBookIndex(); saveBookIndex(i.filter(function(x){ return x.id!==b.id; })); _idb.set('book:'+b.id, null); renderShelf(); } };
+      card.appendChild(del);
+      shelf.appendChild(card);
     });
   }
 
@@ -1583,6 +1636,74 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     self.disabled=false; self.textContent='🔊 从开头朗读全部';
   };
 
+
+  // ---- 全屏文本阅读器（微信读书风）----
+  var rvBookId=null, rvBookTitle='', rvParas=[], rvPages=[], rvIdx=0, rvFs=19, rvTheme='day';
+  var RV_FS_K='tingbook_rv_fs', RV_TH_K='tingbook_rv_theme', RV_PR_K='tingbook_rv_prog_';
+  function rvApply(){
+    var fs=parseInt(localStorage.getItem(RV_FS_K)||'19',10); if(fs) rvFs=fs;
+    var th=localStorage.getItem(RV_TH_K); if(th) rvTheme=th;
+    var page=document.getElementById('rv-page'); if(page) page.style.fontSize=rvFs+'px';
+    var fsEl=document.getElementById('rv-fs'); if(fsEl) fsEl.textContent=rvFs;
+    var rv=document.getElementById('reader-view'); if(rv) rv.dataset.theme=rvTheme;
+    Array.prototype.forEach.call(document.querySelectorAll('.rv-theme'), function(b){ b.classList.toggle('active', b.dataset.t===rvTheme); });
+  }
+  function rvBuild(){
+    rvPages=[];
+    var page=document.getElementById('rv-page'); if(!page) return;
+    var sv=page.style.visibility; page.style.visibility='hidden';
+    page.innerHTML=''; var cur=[];
+    rvParas.forEach(function(p){
+      var el=document.createElement('p'); el.textContent=p; page.appendChild(el);
+      if(page.scrollHeight>page.clientHeight && page.childElementCount>1){
+        page.removeChild(el); rvPages.push(cur); cur=[];
+        var el2=document.createElement('p'); el2.textContent=p; page.appendChild(el2); cur.push(p);
+      } else cur.push(p);
+    });
+    if(cur.length) rvPages.push(cur);
+    if(!rvPages.length) rvPages=[['']];
+    page.style.visibility=sv;
+  }
+  function rvRender(){
+    var page=document.getElementById('rv-page'); if(!page) return;
+    page.innerHTML='';
+    (rvPages[rvIdx]||['']).forEach(function(p){ var el=document.createElement('p'); el.textContent=p; page.appendChild(el); });
+    var bar=document.getElementById('rv-bar'); if(bar) bar.style.width=((rvIdx+1)/rvPages.length*100)+'%';
+    var info=document.getElementById('rv-pinfo'); if(info) info.textContent=(rvIdx+1)+' / '+rvPages.length;
+    try{ localStorage.setItem(RV_PR_K+rvBookId, JSON.stringify({idx:rvIdx})); }catch(e){}
+  }
+  function openReader(id, title){
+    rvBookId=id; rvBookTitle=title;
+    _idb.get('book:'+id).then(function(book){
+      var text=(book&&book.text)||'';
+      rvParas=text.split(/\n+/).map(function(x){ return x.replace(/\s+/g,' ').trim(); }).filter(function(x){ return x; });
+      rvParas=rvParas.reduce(function(a,p){
+        if(p.length>110){ (p.match(/[^。！？；.!?;]+[。！？；.!?;]?/g)||[p]).forEach(function(x){ if(x.trim()) a.push(x.trim()); }); }
+        else a.push(p); return a;
+      },[]);
+      var rv=document.getElementById('reader-view');
+      document.getElementById('rv-title').textContent='《'+title+'》';
+      rv.classList.add('show'); rvApply(); rvBuild();
+      var prog=null; try{ prog=JSON.parse(localStorage.getItem(RV_PR_K+id)||'null'); }catch(e){}
+      rvIdx=(prog&&typeof prog.idx==='number')?Math.min(prog.idx,rvPages.length-1):0;
+      rvRender();
+    });
+  }
+  function hideReader(){ var rv=document.getElementById('reader-view'); if(rv) rv.classList.remove('show'); if('speechSynthesis' in window) speechSynthesis.cancel(); }
+  function initReader(){
+    rvApply();
+    var byId=function(x){ return document.getElementById(x); };
+    byId('rv-back').onclick=hideReader;
+    byId('rv-aa').onclick=function(){ byId('rv-panel').classList.toggle('show'); };
+    byId('rv-menu').onclick=function(){ byId('rv-panel').classList.toggle('show'); };
+    byId('rv-next').onclick=function(){ if(rvIdx<rvPages.length-1){ rvIdx++; rvRender(); } };
+    byId('rv-prev').onclick=function(){ if(rvIdx>0){ rvIdx--; rvRender(); } };
+    byId('rv-fu').onclick=function(){ rvFs=Math.min(30,rvFs+1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} };
+    byId('rv-fd').onclick=function(){ rvFs=Math.max(14,rvFs-1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} };
+    Array.prototype.forEach.call(document.querySelectorAll('.rv-theme'), function(b){ b.onclick=function(){ rvTheme=b.dataset.t; byId('reader-view').dataset.theme=rvTheme; try{localStorage.setItem(RV_TH_K,rvTheme);}catch(e){} rvApply(); }; });
+    byId('rv-listen').onclick=function(){ if(rvBookId) openBook(rvBookId, rvBookTitle); };
+  }
+  initReader();
   // 首次进入阅读栏时渲染书架
   renderShelf();
 })();
