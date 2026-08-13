@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>倾听你的声音</title>
 <style>
-  :root{--bg:#0f1115;--card:#1a1d24;--line:#2a2f3a;--fg:#e8eaed;--muted:#9aa3b2;--accent:#7c5cff;--accent2:#3ddc97}
+  :root{--bg:#f4f1ea;--card:#ffffff;--line:#e7e1d6;--fg:#2b2620;--muted:#8c8475;--accent:#b8902f;--accent2:#3a8f6f;--nc:#ec4141;--app-max:480px;--nav-h:62px;--safe-b:env(safe-area-inset-bottom,0px)}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
     background:var(--bg);color:var(--fg);line-height:1.6;padding:0;padding-bottom:120px}
@@ -101,6 +101,147 @@
   .pp-extra{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
   .pp-extra select{background:#1a1d24;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:13px}
   #player-page audio{display:none}
+
+  /* ============ 小程序式移动端外壳 ============ */
+  *{ -webkit-tap-highlight-color:transparent; }
+  html,body{height:100%}
+  body{ max-width:var(--app-max); margin:0 auto; position:relative;
+    background:var(--bg); color:var(--fg);
+    box-shadow:0 0 60px rgba(0,0,0,.10);
+    padding-bottom:calc(var(--nav-h) + var(--safe-b) + 14px);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+  @media(min-width:520px){ body{ border-left:1px solid var(--line); border-right:1px solid var(--line); } }
+  .appbar{ position:sticky; top:0; z-index:40; background:rgba(244,241,234,.92); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line); padding:calc(9px + env(safe-area-inset-top,0px)) 16px 9px; display:flex; align-items:center; gap:10px; }
+  .cover{ display:none!important; }
+  .appbar .brand{ font-weight:800; font-size:17px; letter-spacing:.5px; }
+  .appbar .brand small{ display:block; font-weight:400; font-size:11px; color:var(--muted); letter-spacing:0; }
+
+  /* 底部 Tab 栏（小程序式） */
+  .tabs{ position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:var(--app-max);
+    display:flex; background:#fff; border-top:1px solid var(--line);
+    padding:6px 0 calc(6px + var(--safe-b)); z-index:90; box-shadow:0 -2px 12px rgba(0,0,0,.06); }
+  .tab-btn{ flex:1; border:0!important; border-radius:0!important; background:transparent!important; color:var(--muted);
+    font-size:11px; display:flex; flex-direction:column; align-items:center; gap:3px; font-weight:600; padding:4px 0; }
+  .tab-btn .ic{ font-size:21px; line-height:1; }
+  .tab-btn.active{ color:var(--accent); box-shadow:none!important; }
+  .tab-panel{ padding:0 0 10px; }
+
+  /* 阅读：微信读书风 — 书架封面网格 + 分类 */
+  .sec-head{ display:flex; align-items:center; justify-content:space-between; padding:16px 16px 8px; font-weight:800; font-size:16px; }
+  .sec-head .more{ font-size:12px; color:var(--muted); font-weight:400; }
+  .cat-chips{ display:flex; gap:8px; overflow-x:auto; padding:2px 16px 10px; white-space:nowrap; }
+  .cat-chips .chip{ background:#fff; border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:5px 13px; font-size:12px; cursor:pointer; }
+  .cat-chips .chip.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .lib-bar{ position:sticky; top:calc(50px + env(safe-area-inset-top,0px)); z-index:30; background:var(--bg);
+    padding:8px 12px; gap:8px; overflow-x:auto; flex-wrap:nowrap; white-space:nowrap; border-bottom:1px solid var(--line); }
+  .lib-bar button{ flex:0 0 auto; padding:7px 13px; font-size:13px; border-radius:999px; }
+  #list{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px 12px; padding:6px 14px 14px; }
+  #list .card{ margin:0!important; padding:0!important; border:0!important; background:transparent!important;
+    display:flex; flex-direction:column; gap:6px; border-radius:0!important; box-shadow:none!important; }
+  .book-cover{ position:relative; aspect-ratio:3/4; border-radius:10px; overflow:hidden; color:#fff;
+    display:flex; align-items:flex-end; padding:10px; font-weight:800; font-size:15px; line-height:1.25;
+    box-shadow:0 6px 14px rgba(60,40,10,.18); }
+  .book-cover::after{ content:""; position:absolute; inset:0;
+    background:radial-gradient(130% 90% at 85% 5%,rgba(255,255,255,.30),transparent 55%),linear-gradient(0deg,rgba(0,0,0,.28),transparent 55%); }
+  .book-cover .bc-title{ position:relative; z-index:1; text-shadow:0 1px 3px rgba(0,0,0,.4);
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .book-cover .badge{ position:absolute; top:6px; right:6px; z-index:2; background:rgba(0,0,0,.35); color:#fff; border:0; font-size:10px; padding:2px 6px; }
+  .book-title{ font-size:12.5px; font-weight:600; line-height:1.35; color:var(--fg);
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .book-meta{ font-size:10.5px; color:var(--muted); }
+  .book-actions{ display:flex; gap:6px; align-items:center; }
+  .book-actions .play-btn{ flex:1; padding:5px 0; font-size:12px; border-radius:7px; }
+  .book-actions .del-btn{ padding:5px 8px; font-size:12px; border-radius:7px; background:transparent!important; border:1px solid var(--line)!important; color:var(--muted)!important; }
+  .book-actions .del-btn:hover{ color:#ff8a8a!important; }
+  .ltyv-section{ border-radius:14px; background:#fff; border:1px solid var(--line); margin:14px; }
+  .hint{ color:var(--muted); font-size:12px; margin:6px 16px 8px; }
+
+  /* 播放页：默认微信读书风（浅色），.music 时网易云风（深色） */
+  #player-page{ z-index:120!important; background:linear-gradient(180deg,#f7f3ec,#efe9df)!important; color:var(--fg); }
+  #player-page .pp-top{ border-bottom:1px solid var(--line); background:transparent; }
+  #player-page .pp-title{ color:var(--fg); }
+  #player-page .pp-sub .sent{ color:#7a7163; }
+  #player-page .pp-sub .sent.active{ background:rgba(184,144,47,.16); color:#2a2113; font-weight:700; }
+  #player-page .pp-btns button{ background:var(--accent); color:#fff; }
+  #player-page .pp-btns #pp-restart{ background:transparent; border:1px solid var(--accent); color:var(--accent); }
+  #player-page .pp-controls{ border-top:1px solid var(--line); }
+  #player-page .pp-playlist{ background:#fff; border:1px solid var(--line); }
+  #player-page .pp-playlist .pl-item.active{ background:var(--accent); color:#fff; }
+
+  /* 网易云风：音乐 Tab + 播放页.music */
+  #tab-music{ background:linear-gradient(180deg,#26222e 0%,#15131b 40%,#0e0d13 100%); color:#ececf2;
+    min-height:100vh; padding-bottom:calc(var(--nav-h) + var(--safe-b)); }
+  #tab-music .sec-head{ color:#fff; }
+  #tab-music .cat-chips .chip{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.14); color:#b9b9c6; }
+  #tab-music .cat-chips .chip.active{ background:var(--nc); color:#fff; border-color:var(--nc); }
+  .m-hero{ display:flex; gap:16px; padding:16px 16px 6px; align-items:center; }
+  .m-hero .m-cover{ width:118px; height:118px; border-radius:14px; flex:0 0 auto;
+    background:linear-gradient(135deg,#ec4141,#7c1f2a); box-shadow:0 10px 24px rgba(236,65,65,.35);
+    display:flex; align-items:center; justify-content:center; font-size:40px; }
+  .m-hero .m-info h2{ margin:0 0 6px; font-size:18px; color:#fff; }
+  .m-hero .m-info p{ margin:0; font-size:12px; color:#b9b9c6; line-height:1.6; }
+  .m-hero .m-play{ margin-top:10px; display:inline-flex; align-items:center; gap:6px; background:var(--nc); color:#fff;
+    border:0; border-radius:999px; padding:8px 18px; font-size:14px; font-weight:600; cursor:pointer; }
+  .album-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px 12px; padding:6px 14px 20px; }
+  .album{ background:transparent; }
+  .album .a-cover{ position:relative; aspect-ratio:1; border-radius:12px; overflow:hidden; color:#fff;
+    display:flex; align-items:flex-end; padding:9px; font-weight:700; font-size:13px; line-height:1.3;
+    box-shadow:0 6px 16px rgba(0,0,0,.35); }
+  .album .a-cover::after{ content:""; position:absolute; inset:0; background:linear-gradient(0deg,rgba(0,0,0,.45),transparent 60%); }
+  .album .a-cover .bc-title{ position:relative; z-index:1; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+    text-shadow:0 1px 3px rgba(0,0,0,.4); }
+  .album .a-play{ position:absolute; right:8px; bottom:8px; z-index:2; width:34px; height:34px; border-radius:50%;
+    background:var(--nc); color:#fff; border:0; font-size:15px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 10px rgba(0,0,0,.4); opacity:0; transition:.15s; cursor:pointer; }
+  .album:hover .a-play, .album .a-cover:hover .a-play{ opacity:1; }
+  .album .a-title{ font-size:12.5px; color:#e9e9f0; margin-top:6px; line-height:1.35;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .album .a-sub{ font-size:10.5px; color:#9a9aa8; }
+  .album .a-title{ font-size:12.5px; color:#ececf2; margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* 播放页.music 深色 + 黑胶 */
+  #player-page.music{ background:linear-gradient(180deg,#2a2632 0%,#14121a 60%,#0c0b11 100%)!important; color:#ececf2; }
+  #player-page.music .pp-top{ border-bottom:1px solid #2c2c38; }
+  #player-page.music .pp-title{ color:#fff; }
+  #player-page.music .pp-back, #player-page.music .pp-list-btn{ border-color:#3a3a48; color:#ececf2; }
+  #player-page.music .pp-sub .sent{ color:#a9a9b8; }
+  #player-page.music .pp-sub .sent.active{ background:rgba(236,65,65,.28); color:#fff; font-weight:700; }
+  #player-page.music .pp-sub .sent-regen{ color:#ec8b8b; }
+  #player-page.music .pp-controls{ border-top:1px solid #2c2c38; }
+  #player-page.music .pp-btns button{ background:var(--nc); }
+  #player-page.music .pp-btns #pp-restart{ background:transparent; border:1px solid var(--nc); color:var(--nc); }
+  .vinyl{ display:none; width:170px; height:170px; border-radius:50%; margin:22px auto 4px;
+    background:radial-gradient(circle at 50% 50%,#444 0 18%,#111 18% 22%,#222 22% 100%);
+    box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 0 6px #1a1a1a; position:relative; }
+  .vinyl::after{ content:""; position:absolute; inset:42%; border-radius:50%; background:var(--nc); box-shadow:inset 0 0 0 4px #2a1014; }
+  .vinyl.spin{ animation:spin 5s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  #player-page.music .vinyl{ display:block; }
+
+  /* 全局正在播放条（网易云风） */
+  #np-bar{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(var(--nav-h) + var(--safe-b));
+    width:100%; max-width:var(--app-max); z-index:88; display:none; align-items:center; gap:10px;
+    padding:8px 12px; background:rgba(18,18,24,.96); color:#fff; border-top:1px solid #2c2c38; backdrop-filter:blur(10px); }
+  #np-bar.show{ display:flex; }
+  .np-vinyl{ width:38px; height:38px; border-radius:50%; flex:0 0 auto;
+    background:conic-gradient(#444 0 50%,#1a1a1a 0 50%); box-shadow:inset 0 0 0 3px #111,0 0 0 2px #333; }
+  .np-vinyl.spin{ animation:spin 4s linear infinite; }
+  .np-info{ flex:1; min-width:0; }
+  .np-title{ font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .np-sub{ font-size:11px; color:#a9a9b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .np-btn{ background:transparent; border:0; color:#fff; font-size:20px; cursor:pointer; }
+  .np-bar-prog{ position:absolute; left:0; bottom:0; height:2px; background:var(--nc); width:0; }
+
+  /* 续播条抬到导航之上 */
+  #resume-bar{ bottom:calc(var(--nav-h) + var(--safe-b))!important; z-index:95!important; }
+
+  /* 我的：个人主页风 */
+  .profile{ display:flex; align-items:center; gap:14px; padding:18px 16px; background:linear-gradient(135deg,#b8902f,#8a6a2f); color:#fff; }
+  .profile .avatar{ width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; font-size:26px; }
+  .profile .p-name{ font-size:18px; font-weight:800; }
+  .profile .p-sub{ font-size:12px; opacity:.88; }
+  .mine-wrap{ padding-top:0; }
 </style>
 <style id="tab-css">
 /* 三栏 Tab 框架 */
@@ -192,10 +333,13 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     </div>
   </div>
 </header>
+<header class="appbar">
+  <div class="brand">倾听你的声音<small>用你最熟悉的声音，读一切</small></div>
+</header>
 <nav class="tabs" id="main-tabs">
-  <button class="tab-btn active" data-tab="reading">📖 阅读</button>
-  <button class="tab-btn" data-tab="music">🎵 音乐</button>
-  <button class="tab-btn" data-tab="mine">👤 我的</button>
+  <button class="tab-btn active" data-tab="reading"><span class="ic">📖</span>阅读</button>
+  <button class="tab-btn" data-tab="music"><span class="ic">🎵</span>音乐</button>
+  <button class="tab-btn" data-tab="mine"><span class="ic">👤</span>我的</button>
 </nav>
 <main>
 <section id="tab-reading" class="tab-panel active">
@@ -215,6 +359,10 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   <div class="row"><div><div class="title" id="resume-title">继续播放</div><div class="meta" id="resume-meta"></div></div>
     <button id="resume-go">▶ 继续播放</button></div>
 </div>
+<div class="sec-head">📚 有声书库 <span class="more" id="book-count"></span></div>
+<div class="cat-chips" id="cat-chips"></div>
+<div id="list"></div>
+<div id="restore-row" style="display:none;margin:4px 14px 14px"><button id="restore-hidden" class="play-btn">♻ 恢复已删除条目</button></div>
 <div id="poly-panel" class="card" style="display:none">
   <div class="row"><div class="title">📝 多音字校准</div><button id="poly-close" class="badge">收起</button></div>
   <p class="meta">规则仅替换语音“读音”，字幕仍显示原字。勾选启用并保存后，对新生成的内容立即生效（已生成的 28 篇不受影响）。</p>
@@ -266,21 +414,65 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   </div>
 </div>
 
-<div id="list"></div>
-<div id="restore-row" style="display:none;margin:4px 14px 14px"><button id="restore-hidden" class="play-btn">♻ 恢复已删除条目</button></div>
-
 <div class="ltyv-section">
   <div class="ltyv-title">🎙 Listen To Your Voice</div>
   <div class="ltyv-desc">基于参考音频 <b>wuyongss.wav</b> 的声纹，已接入 F5-TTS / GPT-SoVITS <b>真实语音克隆引擎</b>（集成于仓库 <code>tts/</code> 目录，可在带 GPU 的机器上一键生成真实可读语音）。下方「原声试听」为<b>真实人声</b>；《葬花吟》当前为<b>参数化音色演示</b>，真实克隆朗读请运行 <code>tts/generate_all.py</code> 后同步上线；全部 28 本有声书亦由同一声纹生成。</div>
   <div id="ltyv-list"></div>
 </div>
 
+</section>
+<section id="tab-music" class="tab-panel">
+  <div class="m-hero">
+    <div class="m-cover" id="m-hero-cover"></div>
+    <div class="m-info">
+      <div style="font-size:11px;color:var(--nc);letter-spacing:2px;margin-bottom:5px">听书电台</div>
+      <h2>用你最熟悉的声音，读一切</h2>
+      <p>28 篇经典诗文 · 你的克隆人声逐句朗读</p>
+      <button class="m-play" id="m-play-all">▶ 随机听一篇</button>
+    </div>
+  </div>
+  <div class="sec-head">📀 有声专辑 <span class="more" id="music-count"></span></div>
+  <div class="cat-chips" id="music-chips"></div>
+  <div class="album-grid" id="album-grid"></div>
+</section>
+<section id="tab-mine" class="tab-panel">
+  <div class="mine-wrap">
+    <div id="mine-login" class="card-box">
+      <h2>👤 登录</h2>
+      <div class="vrow"><input id="login-user" class="inp" placeholder="用户名" style="flex:1"></div>
+      <div class="vrow"><input id="login-pass" class="inp" type="password" placeholder="密码" style="flex:1"></div>
+      <div class="vrow"><button id="login-btn" class="btn">登录</button><span id="login-msg" class="muted"></span></div>
+    </div>
+    <div id="mine-dash" class="hidden">
+      <div class="card-box" style="display:flex;justify-content:space-between;align-items:center">
+        <div>已登录：<b id="mine-user"></b></div>
+        <button id="logout-btn" class="btn ghost">退出登录</button>
+      </div>
+      <div class="card-box">
+        <h3>🎙 我的音色仓库</h3>
+        <p class="muted">上传参考音并命名，朗读「听我读」时即可使用对应音色；可设其中一个为默认。</p>
+        <div class="vrow">
+          <input id="voice-name" class="inp" placeholder="音色名称，如 小明" style="flex:1">
+          <input id="voice-file-upload" class="inp" type="file" accept="audio/*" style="flex:1">
+        </div>
+        <div class="vrow">
+          <input id="voice-reftext" class="inp" placeholder="参考音文本（可选，提升克隆质量）" style="flex:1">
+          <button id="voice-add" class="btn">上传音色</button>
+          <span id="voice-msg" class="muted"></span>
+        </div>
+        <div id="voice-list"></div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
 <div id="player-page">
   <div class="pp-top">
     <button class="pp-back" id="pp-back">← 返回</button>
     <div class="pp-title" id="pp-title">书名</div>
     <button class="pp-list-btn" id="pp-list-toggle">☰ 列表</button>
   </div>
+  <div class="vinyl" id="pp-vinyl"></div>
   <div class="pp-sub" id="pp-sub"></div>
   <div class="pp-playlist" id="pp-playlist"></div>
   <div class="pp-controls">
@@ -316,46 +508,12 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   <button class="rb-close" id="rb-close">×</button>
 </div>
 
-</section>
-<section id="tab-music" class="tab-panel">
-  <div class="mine-wrap">
-    <div class="card-box">
-      <h2>🎵 音乐</h2>
-      <p class="muted">音乐板块建设中。这里将用于音乐 / 歌唱类内容的朗读与克隆。</p>
-    </div>
-  </div>
-</section>
-<section id="tab-mine" class="tab-panel">
-  <div class="mine-wrap">
-    <div id="mine-login" class="card-box">
-      <h2>👤 登录</h2>
-      <div class="vrow"><input id="login-user" class="inp" placeholder="用户名" style="flex:1"></div>
-      <div class="vrow"><input id="login-pass" class="inp" type="password" placeholder="密码" style="flex:1"></div>
-      <div class="vrow"><button id="login-btn" class="btn">登录</button><span id="login-msg" class="muted"></span></div>
-    </div>
-    <div id="mine-dash" class="hidden">
-      <div class="card-box" style="display:flex;justify-content:space-between;align-items:center">
-        <div>已登录：<b id="mine-user"></b></div>
-        <button id="logout-btn" class="btn ghost">退出登录</button>
-      </div>
-      <div class="card-box">
-        <h3>🎙 我的音色仓库</h3>
-        <p class="muted">上传参考音并命名，朗读「听我读」时即可使用对应音色；可设其中一个为默认。</p>
-        <div class="vrow">
-          <input id="voice-name" class="inp" placeholder="音色名称，如 小明" style="flex:1">
-          <input id="voice-file-upload" class="inp" type="file" accept="audio/*" style="flex:1">
-        </div>
-        <div class="vrow">
-          <input id="voice-reftext" class="inp" placeholder="参考音文本（可选，提升克隆质量）" style="flex:1">
-          <button id="voice-add" class="btn">上传音色</button>
-          <span id="voice-msg" class="muted"></span>
-        </div>
-        <div id="voice-list"></div>
-      </div>
-    </div>
-  </div>
-</section>
-</main>
+<div id="np-bar">
+  <div class="np-vinyl" id="np-vinyl"></div>
+  <div class="np-info"><div class="np-title" id="np-title"></div><div class="np-sub" id="np-sub"></div></div>
+  <button class="np-btn" id="np-btn">⏸</button>
+  <div class="np-bar-prog" id="np-prog"></div>
+</div>
 <script>
 /* === 三栏 Tab + 账号 + 音色仓库（听我读） === */
 (function(){
@@ -630,6 +788,7 @@ function hidePlayerPage(){ playerPage.classList.remove('show'); }
 function hideResumeBars(){ resumeBar.style.display='none'; const rc=document.getElementById('resume-card'); if(rc) rc.style.display='none'; }
 function updateNowPlaying(){ const np=document.getElementById('now-playing'); if(currentPlay.name){ np.style.display=''; np.textContent='🎵 '+currentPlay.name; } }
 function playBook(b, startTime){
+  const _isMusic = !!window.__musicPending; window.__musicPending = false; window.__tingCtx = _isMusic ? 'music' : 'read';
   advanceGuard = false;   // 新一首开场即解除“播完”兜底锁，避免续播被误判为已处理
   const _f = b.file || b.audio || b.url;
   if(startTime === undefined) startTime = getPos(_f);   // 未显式指定起点 -> 续播该篇上次位置
@@ -648,7 +807,7 @@ function playBook(b, startTime){
   // preload=none 时仅设置 src 不会发起网络请求，必须主动 play() 触发流式加载（否则死锁）
   audio.play().catch(()=>{});
   if(audio.readyState>=1) seekPlay(); else audio.addEventListener('loadedmetadata', seekPlay, {once:true});
-  showPlayerPage(); updateNowPlaying();
+  showPlayerPage(); playerPage.classList.toggle('music', window.__tingCtx === 'music'); updateNowPlaying();
   saveProgress();
 }
 audio.addEventListener('loadedmetadata', ()=>{ curMarks=null; });
@@ -697,6 +856,7 @@ function onTrackEnded(){
     document.getElementById('play-all').style.display='';
     document.getElementById('stop-all').style.display='none';
     document.getElementById('playing-all-status').textContent='已全部播放完毕 ✓';
+    hideNp();
   }
   document.querySelectorAll('#list .card.playing').forEach(c=>c.classList.remove('playing'));
 }
@@ -728,7 +888,7 @@ function stopAll(){
   document.getElementById('stop-all').style.display='none';
   document.getElementById('playing-all-status').textContent='';
   document.getElementById('now-playing').style.display='none';
-  hidePlayerPage();
+  hidePlayerPage(); hideNp();
   document.querySelectorAll('#list .card.playing').forEach(c=>c.classList.remove('playing'));
 }
 document.getElementById('play-all').onclick=playAll;
@@ -826,22 +986,33 @@ const restoreBtn = document.getElementById('restore-hidden');
 if(restoreBtn) restoreBtn.onclick = restoreAll;
 updateRestoreRow();
 
+const COVER_GRADIENTS=[
+  'linear-gradient(135deg,#caa45a,#8a5a2f)',
+  'linear-gradient(135deg,#5b8def,#2a4a8a)',
+  'linear-gradient(135deg,#ec7a7a,#a83a3a)',
+  'linear-gradient(135deg,#5bbf8f,#2a7a5a)',
+  'linear-gradient(135deg,#9b7adf,#5a3aa8)',
+  'linear-gradient(135deg,#e0a85a,#a86a2a)',
+  'linear-gradient(135deg,#56c2c9,#2a7a82)',
+  'linear-gradient(135deg,#d98ac0,#8a3a72)'
+];
 BOOKS.forEach((b,i)=>{
   if(isHidden(b.file)) return;
-  const card=document.createElement('div'); card.className='card';
+  const card=document.createElement('div'); card.className='card'; card.dataset.title=b.title;
   const dl = document.createElement('a');
-  dl.className='badge'; dl.textContent='⬇ MP3'; dl.href=b.file; dl.setAttribute('download', b.title+'.mp3');
-  card.innerHTML=`
-    <div class="row">
-      <div><div class="title">${i+1}. ${b.title}</div><div class="meta">时长 ${b.duration} 秒</div></div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="play-btn">▶ 播放</button>
-        <button class="del-btn" title="从我的听单移除">🗑</button>
-      </div>
-    </div>`;
-  card.querySelector('.play-btn').insertAdjacentElement('afterend', dl);
-  card.querySelector('.play-btn').onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
-  card.querySelector('.del-btn').onclick=async ()=>{
+  dl.className='badge'; dl.textContent='⬇'; dl.href=b.file; dl.setAttribute('download', b.title+'.mp3'); dl.title='下载 MP3';
+  const cover=document.createElement('div'); cover.className='book-cover'; cover.style.background=COVER_GRADIENTS[i%COVER_GRADIENTS.length];
+  cover.innerHTML='<div class="bc-title">'+b.title+'</div>';
+  cover.appendChild(dl);
+  const title=document.createElement('div'); title.className='book-title'; title.textContent=b.title;
+  const meta=document.createElement('div'); meta.className='book-meta'; meta.textContent='时长 '+b.duration+'s';
+  const actions=document.createElement('div'); actions.className='book-actions';
+  const play=document.createElement('button'); play.className='play-btn'; play.textContent='▶ 朗读';
+  const del=document.createElement('button'); del.className='del-btn'; del.textContent='🗑'; del.title='从听单移除';
+  actions.appendChild(play); actions.appendChild(del);
+  card.appendChild(cover); card.appendChild(title); card.appendChild(meta); card.appendChild(actions);
+  play.onclick=()=>{ stopAll(); card.classList.add('playing'); playBook(b, 0); };
+  del.onclick=async ()=>{
     if(!confirm('永久删除《'+b.title+'》？\n这将从服务器删除音频并移除播放条目，且无法撤销。')) return;
     const ok = await deleteBackend(b.file);   // 先同步删除 GitHub 仓库文件
     if(ok){ hideFile(b.file); card.remove(); } // 成功后再隐藏本地视图
@@ -1119,6 +1290,112 @@ document.getElementById('poly-save').onclick=async ()=>{
     msg.textContent = (j.status==='ok') ? ('✅ 已保存 '+j.count+' 条，新生成即生效') : '❌ 保存失败';
   }catch(e){ msg.textContent='❌ 保存失败'; }
 };
+
+// ================= 内容重新分类 + 音乐（网易云风）+ 全局播放条 =================
+const CATS = [
+  { key:'诗词', items:['将进酒','声声慢','念奴娇赤壁怀古','春江花月夜','水调歌头','沁园春长沙','沁园春雪','白头吟','蜀道难','侠客行','葬花吟','红楼梦引子','错误_郑愁予','木兰诗','长恨歌','琵琶行'] },
+  { key:'辞赋', items:['洛神赋','阿房宫赋','赤壁赋','滕王阁序','离骚','逍遥游','涉江'] },
+  { key:'古文', items:['出师表','岳阳楼记','师说','桃花源记','过秦论'] }
+];
+const CAT_SET = {};
+CATS.forEach(function(c){ c.items.forEach(function(t){ CAT_SET[t] = c.key; }); });
+function catOf(title){ return CAT_SET[title] || '诗词'; }
+
+// 给已渲染的阅读卡片补上分类标记（BOOKS 渲染循环早于本段，故此处补打）
+document.querySelectorAll('#list .card').forEach(function(c){
+  const b = BOOKS.find(function(x){ return x.title === c.dataset.title; });
+  c.dataset.cat = b ? catOf(b.title) : '';
+});
+
+// 分类 chips：点击按 dataset.cat 过滤容器内的卡片
+function buildChips(chipsEl, container){
+  if(!chipsEl || !container) return;
+  chipsEl.innerHTML = '';
+  const cats = [{key:'', label:'全部'}].concat(CATS.map(function(c){ return {key:c.key, label:c.key}; }));
+  cats.forEach(function(cat, i){
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (i===0 ? ' active' : '');
+    chip.textContent = cat.label; chip.dataset.cat = cat.key;
+    chip.onclick = function(){
+      chipsEl.querySelectorAll('.chip').forEach(function(x){ x.classList.remove('active'); });
+      chip.classList.add('active');
+      Array.prototype.forEach.call(container.children, function(card){
+        const show = !cat.key || card.dataset.cat === cat.key;
+        card.style.display = show ? '' : 'none';
+      });
+    };
+    chipsEl.appendChild(chip);
+  });
+}
+
+// 音乐 tab：把每本书渲染成专辑（网易云风），点击即用克隆音朗读
+function renderMusic(){
+  const grid = document.getElementById('album-grid'); if(!grid) return;
+  grid.innerHTML = '';
+  BOOKS.forEach(function(b, i){
+    if(isHidden(b.file)) return;
+    const album = document.createElement('div'); album.className = 'album';
+    album.dataset.cat = catOf(b.title); album.dataset.title = b.title;
+    const cover = document.createElement('div'); cover.className = 'a-cover';
+    cover.style.background = COVER_GRADIENTS[i % COVER_GRADIENTS.length];
+    cover.innerHTML = '<div class="bc-title">' + b.title + '</div>';
+    const play = document.createElement('button'); play.className = 'a-play'; play.textContent = '▶'; play.title = '朗读';
+    cover.appendChild(play);
+    const title = document.createElement('div'); title.className = 'a-title'; title.textContent = b.title;
+    const sub = document.createElement('div'); sub.className = 'a-sub'; sub.textContent = catOf(b.title) + ' · 听书';
+    album.appendChild(cover); album.appendChild(title); album.appendChild(sub);
+    album.onclick = function(){ playFromMusic(b); };
+    grid.appendChild(album);
+  });
+  const mc = document.getElementById('music-count'); if(mc) mc.textContent = BOOKS.length + ' 篇';
+  const hc = document.getElementById('m-hero-cover'); if(hc) hc.style.background = 'linear-gradient(135deg,#ec4141,#7a1f1f)';
+}
+
+// 从音乐 tab 发起播放：标记 music 上下文，让播放页切深色黑胶
+function playFromMusic(b){
+  stopAll();
+  window.__musicPending = true;
+  playBook(b, 0);
+}
+
+// 全局“正在播放”条（网易云风）+ 黑胶旋转
+const npBar = document.getElementById('np-bar');
+const npTitle = document.getElementById('np-title');
+const npSub = document.getElementById('np-sub');
+const npBtn = document.getElementById('np-btn');
+const npProg = document.getElementById('np-prog');
+const npVinyl = document.getElementById('np-vinyl');
+const ppVinyl = document.getElementById('pp-vinyl');
+function spinOn(){ ppVinyl.classList.add('spin'); npVinyl.classList.add('spin'); }
+function spinOff(){ ppVinyl.classList.remove('spin'); npVinyl.classList.remove('spin'); }
+function showNp(){ npBar.classList.add('show'); }
+function hideNp(){ npBar.classList.remove('show'); spinOff(); }
+function updateNp(){
+  if(!currentPlay.name) return;
+  npTitle.textContent = currentPlay.name;
+  const c = catOf(currentPlay.name);
+  npSub.textContent = (window.__tingCtx === 'music' ? '专辑 · ' : '') + (c ? c + ' · ' : '') + '听书';
+  if(audio.duration){ npProg.style.width = (audio.currentTime / audio.duration * 100) + '%'; }
+}
+audio.addEventListener('play', function(){ showNp(); spinOn(); updateNp(); });
+audio.addEventListener('pause', function(){ spinOff(); updateNp(); });
+audio.addEventListener('timeupdate', updateNp);
+npBtn.onclick = function(){ togglePlay(); };
+const npInfo = npBar.querySelector('.np-info'); if(npInfo) npInfo.onclick = function(){ showPlayerPage(); };
+
+// 音乐 hero 随机听一篇
+const mPlayAll = document.getElementById('m-play-all');
+if(mPlayAll) mPlayAll.onclick = function(){
+  const pool = BOOKS.filter(function(b){ return !isHidden(b.file); });
+  if(!pool.length) return;
+  playFromMusic(pool[Math.floor(Math.random() * pool.length)]);
+};
+
+// 初始化：分类 chips + 专辑渲染
+buildChips(document.getElementById('cat-chips'), document.getElementById('list'));
+buildChips(document.getElementById('music-chips'), document.getElementById('album-grid'));
+renderMusic();
+const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.length + ' 篇';
 </script>
 <script>
 /* === 电子书：上传(txt/epub) → 解析 → 本机保存 → 克隆音逐句朗读 === */
