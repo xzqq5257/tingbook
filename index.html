@@ -72,19 +72,7 @@
   .pp-sub .sent-regen:hover{color:#fff;background:rgba(124,92,255,.30)}
   .pp-sub .sent-regen.busy{opacity:1;color:#b8902f;cursor:default}
   .pp-sub .sent-regen.done{opacity:1;color:#3ec98a}
-  /* 电子书阅读器句子（沿用字幕句的视觉） */
-  .ebook-sentences{padding:4px 2px}
-  .ebook-sentences .sent{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-radius:8px;color:#cfd5e0;cursor:default;transition:.15s;border:1px solid transparent}
-  .ebook-sentences .sent:hover{background:rgba(124,92,255,.10);border-color:var(--line)}
-  .ebook-sentences .sent.playing{background:rgba(124,92,255,.20);color:#fff;font-weight:600}
-  .ebook-sentences .sent-text{flex:1;line-height:1.7}
-  .ebook-sentences .sent-regen{display:inline-block;flex:0 0 auto;font-size:13px;line-height:1;border:0;background:#2a2f3a;color:#7c5cff;cursor:pointer;padding:4px 8px;border-radius:6px;transition:.15s}
-  .ebook-sentences .sent-regen:hover{color:#fff;background:rgba(124,92,255,.30)}
-  .ebook-sentences .sent-regen.busy{color:#b8902f;cursor:default}
-  .ebook-sentences .sent-regen.done{color:#3ec98a}
   .ebook-book{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#0f131a}
-  .ebook-read-status{font-size:12px;color:#f0c674;background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.35);padding:6px 10px;border-radius:8px;margin:8px 0 2px;line-height:1.5;display:none}
-  .ebook-read-status.show{display:block}
   .ebook-book .eb-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ebook-book .eb-meta{font-size:11px;color:var(--muted)}
   .pp-playlist{position:absolute;top:58px;right:10px;width:240px;max-height:62%;overflow-y:auto;background:#11141a;border:1px solid var(--line);border-radius:10px;display:none;z-index:60;box-shadow:0 8px 30px rgba(0,0,0,.5)}
@@ -253,12 +241,6 @@
 .ebook-cover .ec-meta{ font-size:11px; opacity:.9; margin-top:4px; }
 .ebook-cover .ec-del{ position:absolute; top:6px; right:6px; width:24px; height:24px; border:none; border-radius:50%; background:rgba(0,0,0,.4); color:#fff; font-size:12px; cursor:pointer; }
 .ebook-empty{ color:var(--muted); padding:20px 4px; text-align:center; }
-.ro-top{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-.ro-top .badge{ margin-left:auto; }
-.ro-top b{ flex:1; }
-/* 听书覆盖层（克隆音逐句朗读） */
-#ebook-reader.reader-ts{ position:fixed; inset:0; z-index:215; background:#0f131a; color:#cfd5e0; overflow:auto; padding:14px; padding-top:calc(14px + env(safe-area-inset-top)); padding-bottom:calc(14px + env(safe-area-inset-bottom)); }
-.reader-ts .ebook-sentences{ max-height:none; height:auto; }
 /* 全屏文本阅读器（微信读书风） */
 .reader-view{ display:none; position:fixed; inset:0; z-index:200; flex-direction:column; background:#f5f0e6; color:#33302a; }
 .reader-view.show{ display:flex; }
@@ -272,7 +254,11 @@
 .reader-view[data-theme="night"] .rv-progress i{ background:var(--nc); }
 .rv-stage{ flex:1; overflow:hidden; padding:18px 20px; }
 .rv-page{ height:100%; overflow:auto; line-height:1.95; text-align:justify; font-size:19px; }
-.rv-page p{ margin:0 0 1.1em; }
+.rv-page p{ margin:0 0 .9em; text-indent:0; }
+.rv-page .si{ border-radius:4px; padding:0 1px; transition:background .15s, color .15s; }
+.rv-page .si.si-on{ background:rgba(184,144,47,.20); color:var(--accent); box-shadow:0 0 0 1px rgba(184,144,47,.25); }
+.reader-view[data-theme="sepia"] .rv-page .si.si-on{ background:rgba(120,90,30,.18); color:#5a4326; }
+.reader-view[data-theme="night"] .rv-page .si.si-on{ background:rgba(236,65,65,.22); color:#ffd9d9; box-shadow:0 0 0 1px rgba(236,65,65,.30); }
 .rv-zones{ display:flex; height:52px; border-top:1px solid rgba(128,128,128,.18); }
 .rv-z{ flex:1; background:none; border:none; color:inherit; opacity:.45; font-size:20px; cursor:pointer; }
 .rv-z:active{ opacity:.9; }
@@ -354,13 +340,9 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   .inp{ background:#fff!important; color:var(--fg)!important; }
   .pp-playlist{ background:#fff!important; border:1px solid var(--line)!important; }
   .pp-extra select{ background:#fff!important; color:var(--fg)!important; }
-  /* 电子书「听书」面板亮色 */
-  #ebook-reader.reader-ts{ background:#f5f0e6!important; color:#33302a!important; }
+  /* 电子书书架亮色 */
   .ebook-book{ background:#fff!important; }
   .ebook-book .eb-title{ color:var(--fg)!important; }
-  .ebook-sentences .sent.playing{ background:rgba(184,144,47,.16)!important; color:#2a2113!important; font-weight:600!important; }
-  .ebook-sentences .sent-regen{ background:#efe9df!important; color:var(--accent)!important; }
-  .ebook-sentences .sent-regen:hover{ color:var(--accent)!important; background:rgba(184,144,47,.18)!important; }
   /* 背景预设色块 */
   .bg-presets{ display:flex; gap:10px; flex-wrap:wrap; }
   .bg-sw{ width:56px; height:56px; border-radius:12px; border:2px solid var(--line); cursor:pointer;
@@ -458,15 +440,6 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   </div>
   <p class="hint">支持 .txt / .epub，解析后保存在本机浏览器，可随时打开阅读，也能用你的克隆音「听书」。</p>
   <div id="ebook-shelf" class="ebook-shelf-grid"></div>
-  <div id="ebook-reader" class="reader-ts" style="display:none;margin-top:14px">
-    <div class="ro-top">
-      <button id="ebook-reader-close" class="badge">✕ 关闭</button>
-      <b id="ebook-reader-title" style="color:var(--accent2)"></b>
-      <button id="ebook-readall" class="badge" style="background:var(--accent);color:#fff;border:0">🔊 朗读全部</button>
-    </div>
-    <div id="ebook-read-status" class="ebook-read-status"></div>
-    <div id="ebook-sentences" class="ebook-sentences" style="margin-top:10px"></div>
-  </div>
 </section>
 
 <section id="tab-music" class="tab-panel">
@@ -1615,32 +1588,6 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     });
   }
 
-  async function openBook(id, fallbackTitle){
-    var book=await _idb.get('book:'+id);
-    var title=(book&&book.title)||fallbackTitle||'电子书';
-    var text=(book&&book.text)||'';
-    var reader=document.getElementById('ebook-reader');
-    document.getElementById('ebook-reader-title').textContent='《'+title+'》';
-    var box=document.getElementById('ebook-sentences'); box.innerHTML='';
-    var sents=splitSentences(text);
-    if(!sents.length){ box.innerHTML='<span class="meta">正文为空</span>'; }
-    sents.forEach(function(s){
-      var row=document.createElement('div'); row.className='sent';
-      var tx=document.createElement('div'); tx.className='sent-text'; tx.textContent=s;
-      var btn=document.createElement('button'); btn.className='sent-regen'; btn.textContent='🔊'; btn.title='用克隆音朗读这句';
-      btn.onclick=async function(){
-        document.querySelectorAll('#ebook-sentences .sent.playing').forEach(function(e){ e.classList.remove('playing'); });
-        row.classList.add('playing');
-        await regenSentence(s, btn);
-        row.classList.remove('playing');
-      };
-      row.appendChild(tx); row.appendChild(btn);
-      box.appendChild(row);
-    });
-    reader.style.display='block';
-    reader.scrollIntoView({behavior:'smooth', block:'start'});
-  }
-
   document.getElementById('ebook-upload').addEventListener('click', async function(){
     var input=document.getElementById('ebook-file');
     var file=input.files[0];
@@ -1666,76 +1613,12 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     }catch(e){ msg.textContent='解析失败：'+(e&&e.message?e.message:e); }
   });
 
-  document.getElementById('ebook-reader-close').onclick=function(){
-    ebookReading=false;
-    if(ebookCurAudio){ try{ ebookCurAudio.pause(); }catch(e){} ebookCurAudio=null; }
-    document.getElementById('ebook-reader').style.display='none';
-    if('speechSynthesis' in window) speechSynthesis.cancel();
-  };
 
-  document.getElementById('ebook-readall').onclick=async function(){
-    var box=document.getElementById('ebook-sentences');
-    var rows=[].slice.call(box.querySelectorAll('.sent'));
-    if(!rows.length) return;
-    if(ebookReading){ // 再次点击 = 停止
-      ebookReading=false;
-      if(ebookCurAudio){ try{ ebookCurAudio.pause(); }catch(e){} ebookCurAudio=null; }
-      this.disabled=false; this.textContent='🔊 从开头朗读全部';
-      var se=document.getElementById('ebook-read-status'); if(se) se.classList.remove('show');
-      document.querySelectorAll('#ebook-sentences .sent.playing').forEach(function(e){ e.classList.remove('playing'); });
-      return;
-    }
-    ebookReading=true;
-    var self=this; self.disabled=true; self.textContent='⏹ 停止朗读';
-    var texts=rows.map(function(r){ return r.querySelector('.sent-text').textContent; });
-    var cache={}, inflight={};
-    function fetchBlob(i){
-      if(i<0||i>=texts.length) return Promise.resolve(null);
-      return fetchTingRead(texts[i]).then(function(r){ return r.ok ? r.blob : null; });
-    }
-    function ensure(i, depth){
-      for(var k=1;k<=depth;k++){ var j=i+k; if(j<texts.length && !cache[j] && !inflight[j]){ inflight[j]=fetchBlob(j).then(function(b){ cache[j]=b; inflight[j]=null; return b; }); } }
-    }
-    function playBlob(blob){
-      return new Promise(function(resolve){
-        if(!blob){ resolve(); return; }
-        var url=URL.createObjectURL(blob); var a=new Audio(url); ebookCurAudio=a;
-        a.onended=function(){ URL.revokeObjectURL(url); resolve(); };
-        a.onerror=function(){ URL.revokeObjectURL(url); resolve(); };
-        a.play().catch(function(){ URL.revokeObjectURL(url); resolve(); });
-      });
-    }
-    function highlight(i){
-      document.querySelectorAll('#ebook-sentences .sent.playing').forEach(function(e){ e.classList.remove('playing'); });
-      if(i>=0 && rows[i]) rows[i].classList.add('playing');
-    }
-    var statusEl=document.getElementById('ebook-read-status');
-    function setStatus(msg, warn){ if(statusEl){ statusEl.textContent=msg; statusEl.classList.toggle('show', !!msg); statusEl.style.color = warn?'#f08a8a':'#f0c674'; } }
-    setStatus('🔊 正在用你的克隆音朗读（若服务无响应会自动改用系统嗓音）', false);
-    var cloneDown=false;
-    for(var i=0;i<texts.length;i++){
-      if(!ebookReading) break;
-      ensure(i, 2);  // 后台并行预取后 2 句
-      var blob=cache[i] || await (inflight[i] || fetchBlob(i));
-      cache[i]=blob;
-      highlight(i);
-      if(blob){ await playBlob(blob); }
-      else {
-        if(!cloneDown){ cloneDown=true; setStatus('⚠️ 克隆音服务暂时无响应，已改用系统嗓音朗读（可在「我的」检查音色，或重启语音服务）', true); }
-        await sysSpeak(texts[i]);   // 克隆失败 → 系统嗓音兜底，朗读不中断
-      }
-      ebookCurAudio=null;
-      if(!ebookReading) break;
-    }
-    highlight(-1);
-    ebookReading=false;
-    self.disabled=false; self.textContent='🔊 从开头朗读全部';
-  };
-
-
-  // ---- 全屏文本阅读器（微信读书风）----
-  var rvBookId=null, rvBookTitle='', rvParas=[], rvPages=[], rvIdx=0, rvFs=19, rvTheme='day';
+  // ---- 全屏文本阅读器（微信读书风，单一阅读体验，听书内嵌）----
+  var rvBookId=null, rvBookTitle='', rvPars=[], rvSents=[], rvSentStart=[], rvPages=[], rvPageOfPara=[], rvIdx=0, rvFs=19, rvTheme='day';
   var RV_FS_K='tingbook_rv_fs', RV_TH_K='tingbook_rv_theme', RV_PR_K='tingbook_rv_prog_';
+  var rvReading=false, rvAudio=null, rvReadStop=false, rvCache={}, rvInflight={};
+
   function rvApply(){
     var fs=parseInt(localStorage.getItem(RV_FS_K)||'19',10); if(fs) rvFs=fs;
     var th=localStorage.getItem(RV_TH_K); if(th) rvTheme=th;
@@ -1744,39 +1627,62 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     var rv=document.getElementById('reader-view'); if(rv) rv.dataset.theme=rvTheme;
     Array.prototype.forEach.call(document.querySelectorAll('.rv-theme'), function(b){ b.classList.toggle('active', b.dataset.t===rvTheme); });
   }
+
+  // 解析正文：按段落排版，按句朗读（句=高亮单位）
+  function rvParse(text){
+    rvPars = (text||'').split(/\n+/).map(function(x){ return x.replace(/\s+/g,' ').trim(); }).filter(function(x){ return x; });
+    rvSents=[]; rvSentStart=[]; var g=0;
+    rvPars.forEach(function(para, pi){
+      rvSentStart[pi]=g;
+      splitSentences(para).forEach(function(s){ if(s && s.trim()){ rvSents.push({p:pi, text:s.trim()}); g++; } });
+    });
+    if(!rvSents.length){ rvPars=['']; }
+  }
+
+  // 把某段落渲染成 <p>，内含逐句 <span class="si">
+  function rvFill(pEl, pi){
+    var start=rvSentStart[pi]||0;
+    splitSentences(rvPars[pi]||'').forEach(function(s, k){
+      if(!s || !s.trim()) return;
+      var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=(start+k); sp.textContent=s;
+      pEl.appendChild(sp);
+    });
+  }
+
   function rvBuild(){
-    rvPages=[];
+    rvPages=[]; rvPageOfPara=new Array(rvPars.length).fill(0);
     var page=document.getElementById('rv-page'); if(!page) return;
     var sv=page.style.visibility; page.style.visibility='hidden';
     page.innerHTML=''; var cur=[];
-    rvParas.forEach(function(p){
-      var el=document.createElement('p'); el.textContent=p; page.appendChild(el);
-      if(page.scrollHeight>page.clientHeight && page.childElementCount>1){
-        page.removeChild(el); rvPages.push(cur); cur=[];
-        var el2=document.createElement('p'); el2.textContent=p; page.appendChild(el2); cur.push(p);
-      } else cur.push(p);
+    rvPars.forEach(function(para, pi){
+      var p=document.createElement('p'); rvFill(p, pi); page.appendChild(p);
+      if(page.scrollHeight>page.clientHeight && cur.length>0){
+        page.removeChild(p); rvPages.push(cur); cur=[pi];
+        var p2=document.createElement('p'); rvFill(p2, pi); page.appendChild(p2);
+      } else cur.push(pi);
     });
     if(cur.length) rvPages.push(cur);
-    if(!rvPages.length) rvPages=[['']];
+    if(!rvPages.length) rvPages=[[]];
+    rvPages.forEach(function(arr,pg){ arr.forEach(function(pi){ rvPageOfPara[pi]=pg; }); });
     page.style.visibility=sv;
   }
+
   function rvRender(){
     var page=document.getElementById('rv-page'); if(!page) return;
     page.innerHTML='';
-    (rvPages[rvIdx]||['']).forEach(function(p){ var el=document.createElement('p'); el.textContent=p; page.appendChild(el); });
-    var bar=document.getElementById('rv-bar'); if(bar) bar.style.width=((rvIdx+1)/rvPages.length*100)+'%';
+    (rvPages[rvIdx]||[]).forEach(function(pi){
+      var p=document.createElement('p'); rvFill(p, pi); page.appendChild(p);
+    });
+    var bar=document.getElementById('rv-bar'); if(bar) bar.style.width=((rvIdx+1)/Math.max(1,rvPages.length)*100)+'%';
     var info=document.getElementById('rv-pinfo'); if(info) info.textContent=(rvIdx+1)+' / '+rvPages.length;
     try{ localStorage.setItem(RV_PR_K+rvBookId, JSON.stringify({idx:rvIdx})); }catch(e){}
   }
+
   function openReader(id, title){
-    rvBookId=id; rvBookTitle=title;
+    rvBookId=id; rvBookTitle=title; rvCache={}; rvInflight={};
     _idb.get('book:'+id).then(function(book){
       var text=(book&&book.text)||'';
-      rvParas=text.split(/\n+/).map(function(x){ return x.replace(/\s+/g,' ').trim(); }).filter(function(x){ return x; });
-      rvParas=rvParas.reduce(function(a,p){
-        if(p.length>110){ (p.match(/[^。！？；.!?;]+[。！？；.!?;]?/g)||[p]).forEach(function(x){ if(x.trim()) a.push(x.trim()); }); }
-        else a.push(p); return a;
-      },[]);
+      rvParse(text);
       var rv=document.getElementById('reader-view');
       document.getElementById('rv-title').textContent='《'+title+'》';
       rv.classList.add('show'); rvApply();
@@ -1788,7 +1694,63 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
       });
     });
   }
-  function hideReader(){ var rv=document.getElementById('reader-view'); if(rv) rv.classList.remove('show'); if('speechSynthesis' in window) speechSynthesis.cancel(); }
+  function hideReader(){ rvStopRead(); var rv=document.getElementById('reader-view'); if(rv) rv.classList.remove('show'); }
+
+  // ---- 听书：在当前分页内逐句高亮朗读，自动翻页 ----
+  function rvHilite(i){
+    document.querySelectorAll('#rv-page .si.si-on').forEach(function(e){ e.classList.remove('si-on'); });
+    var sp=document.querySelector('#rv-page .si[data-si="'+i+'"]');
+    if(sp){ sp.classList.add('si-on'); try{ sp.scrollIntoView({block:'center'}); }catch(e){} }
+  }
+  function rvGoSentence(i){
+    var pi=rvSents[i] ? rvSents[i].p : 0;
+    if(rvPageOfPara[pi]!==rvIdx){ rvIdx=rvPageOfPara[pi]; rvRender(); }
+    rvHilite(i);
+  }
+  function rvPlayBlob(blob){
+    return new Promise(function(resolve){
+      if(!blob){ resolve(); return; }
+      var url=URL.createObjectURL(blob); var a=new Audio(url); rvAudio=a;
+      a.onended=function(){ URL.revokeObjectURL(url); resolve(); };
+      a.onerror=function(){ URL.revokeObjectURL(url); resolve(); };
+      a.play().catch(function(){ URL.revokeObjectURL(url); resolve(); });
+    });
+  }
+  function rvGet(i){
+    if(i<0||i>=rvSents.length) return Promise.resolve(null);
+    if(rvCache[i]!==undefined) return Promise.resolve(rvCache[i]);
+    if(rvInflight[i]) return rvInflight[i];
+    rvInflight[i]=fetchTingRead(rvSents[i].text).then(function(r){ var b=(r&&r.ok)?r.blob:null; rvCache[i]=b; rvInflight[i]=null; return b; }).catch(function(){ rvCache[i]=null; rvInflight[i]=null; return null; });
+    return rvInflight[i];
+  }
+  function setRvListen(on){ var b=document.getElementById('rv-listen'); if(b) b.textContent = on ? '⏹ 停止朗读' : '🔊 听书'; }
+  function rvStopRead(){
+    rvReading=false; rvReadStop=true;
+    if(rvAudio){ try{ rvAudio.pause(); }catch(e){} rvAudio=null; }
+    if('speechSynthesis' in window) try{ speechSynthesis.cancel(); }catch(e){}
+    setRvListen(false);
+    document.querySelectorAll('#rv-page .si.si-on').forEach(function(e){ e.classList.remove('si-on'); });
+  }
+  async function rvReadBook(){
+    if(rvReading){ rvStopRead(); return; }
+    if(!rvSents.length) return;
+    rvReading=true; rvReadStop=false; rvCache={}; rvInflight={};
+    setRvListen(true);
+    var arr=rvPages[rvIdx]||[];
+    var start = arr.length ? (rvSentStart[arr[0]]||0) : 0;
+    for(var i=start; i<rvSents.length; i++){
+      if(rvReadStop) break;
+      rvGet(i+1); // 预取下一句，减少句间停顿
+      rvGoSentence(i);
+      var blob=await rvGet(i);
+      if(rvReadStop) break;
+      if(blob){ await rvPlayBlob(blob); }
+      else { await sysSpeak(rvSents[i].text); }
+      if(rvReadStop) break;
+    }
+    rvStopRead();
+  }
+
   function initReader(){
     rvApply();
     var byId=function(x){ return document.getElementById(x); };
@@ -1804,10 +1766,10 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     }); }
     byId('rv-next').onclick=function(){ if(rvIdx<rvPages.length-1){ rvIdx++; rvRender(); } };
     byId('rv-prev').onclick=function(){ if(rvIdx>0){ rvIdx--; rvRender(); } };
-    byId('rv-fu').onclick=function(){ rvFs=Math.min(30,rvFs+1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} };
-    byId('rv-fd').onclick=function(){ rvFs=Math.max(14,rvFs-1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} };
+    byId('rv-fu').onclick=function(){ rvFs=Math.min(30,rvFs+1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
+    byId('rv-fd').onclick=function(){ rvFs=Math.max(14,rvFs-1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
     Array.prototype.forEach.call(document.querySelectorAll('.rv-theme'), function(b){ b.onclick=function(){ rvTheme=b.dataset.t; byId('reader-view').dataset.theme=rvTheme; try{localStorage.setItem(RV_TH_K,rvTheme);}catch(e){} rvApply(); }; });
-    byId('rv-listen').onclick=function(){ if(rvBookId) openBook(rvBookId, rvBookTitle); };
+    byId('rv-listen').onclick=function(){ rvReadBook(); };
   }
   initReader();
   // 首次进入阅读栏时渲染书架
