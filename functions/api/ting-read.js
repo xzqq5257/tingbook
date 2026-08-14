@@ -79,7 +79,7 @@ async function enrollVoice(apiKey, wsId, env) {
   const model = (env.COSYVOICE_MODEL || "cosyvoice-v3.5-plus").trim();
   const url = `https://${wsId}.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/customization`;
   const ctrl = new AbortController();
-  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 25000);
+  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 120000);
   try {
     const r = await fetch(url, {
       method: "POST",
@@ -131,7 +131,7 @@ async function synthesize(apiKey, wsId, env, voiceId, text) {
     body.input.instructions = env.COSYVOICE_INSTRUCTIONS.trim().slice(0, 200);
   }
   const ctrl = new AbortController();
-  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 25000);
+  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 120000);
   try {
     const r = await fetch(url, {
       method: "POST",
