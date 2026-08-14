@@ -490,8 +490,8 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
       <textarea id="ting-input" class="inp" rows="3" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="例如：朗读《将进酒》  或  直接粘贴你想听的文字…"></textarea>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
         <div style="display:inline-flex;border:1px solid #cbb892;border-radius:8px;overflow:hidden">
-          <button id="ting-mode-system" class="mode-btn" style="border:0;background:#b8902f;color:#fff">🖥 系统嗓音</button>
-          <button id="ting-mode-clone" class="mode-btn" style="border:0;border-left:1px solid #cbb892;background:transparent;color:#5b4a2a">🎙 克隆音</button>
+          <button id="ting-mode-system" class="mode-btn" style="border:0;background:transparent;color:#5b4a2a">🖥 系统嗓音</button>
+          <button id="ting-mode-clone" class="mode-btn" style="border:0;border-left:1px solid #cbb892;background:#b8902f;color:#fff">🎙 克隆音</button>
         </div>
         <select id="ting-voice" class="inp" style="min-width:160px"></select>
         <button id="ting-play" class="play-btn">🔊 朗读</button>
@@ -1294,7 +1294,8 @@ async function regenSentence(text, btn){
 }
 
 // ---------------- 模式切换 ----------------
-let tingMode = 'system';
+// 默认使用克隆音（即用户上传的参考音）朗读；记忆用户上次的模式选择
+let tingMode = 'clone';
 function setTingMode(m){
   tingMode = m;
   const sys = document.getElementById('ting-mode-system');
@@ -1303,11 +1304,17 @@ function setTingMode(m){
   sys.style.color = m==='system' ? '#fff' : '#5b4a2a';
   cl.style.background = m==='clone' ? '#b8902f' : 'transparent';
   cl.style.color = m==='clone' ? '#fff' : '#5b4a2a';
+  try{ localStorage.setItem('ting_mode', m); }catch(e){}
 }
 document.getElementById('ting-mode-system').onclick = ()=>setTingMode('system');
 document.getElementById('ting-mode-clone').onclick = ()=>setTingMode('clone');
 document.getElementById('ting-play').onclick = ()=>{ if(tingMode==='clone') tingCloneSpeak(); else tingSpeak(); };
 document.getElementById('ting-stop').onclick = tingStop;
+try{
+  var __savedMode = localStorage.getItem('ting_mode');
+  setTingMode(__savedMode==='system' || __savedMode==='clone' ? __savedMode : 'clone');
+}catch(e){ setTingMode('clone'); }
+
 
 
 // ---------------- 多音字校准 ----------------
