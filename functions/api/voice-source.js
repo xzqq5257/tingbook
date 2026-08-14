@@ -124,6 +124,13 @@ export async function onRequestPost(context) {
 
   const dur = wavDuration(buf);
 
+  // 关键：上传新参考音后，让「克隆朗读」立即换成新音色——删除 KV 里缓存的百炼 voice_id，
+  // 下次 /api/ting-read 合成时会用新的 ltyv_reference.wav 重新向百炼注册。否则克隆音会一直
+  // 沿用旧参考音登记出来的那个 voice_id，用户「上传的参考音频」永远不生效。
+  if (env.TINGBOOK_KV) {
+    try { await env.TINGBOOK_KV.delete("cosyvoice:voice_id"); } catch (e) {}
+  }
+
   // 若配置了 F5 服务地址，成功写入后自动通知其刷新参考音（换声一次到位）。
   // 此为尽力而为：通知失败不影响本次上传成功。
   let hfRefreshed = null;
