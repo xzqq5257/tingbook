@@ -1631,7 +1631,14 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   var working=null;
   // 在用户点击手势内调用一次：用一次静音 speak 建立「允许媒体播放/语音合成」的 sticky 激活，
   // 避免等待克隆音（数秒）期间用户手势激活过期，导致浏览器 autoplay 策略拦截 Audio.play / speechSynthesis
-  function unlockMedia(){ try{ if('speechSynthesis' in window){ var u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); } }catch(e){} }
+  function unlockMedia(){
+    try{ if('speechSynthesis' in window){ var u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); } }catch(e){}
+    try{
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(AC && !window.__tingAC){ window.__tingAC = new AC(); }
+      if(window.__tingAC && window.__tingAC.state==='suspended'){ window.__tingAC.resume(); }
+    }catch(e){}
+  }
   // 单句克隆音朗读（带超时；失败时回退系统嗓音，朗读不中断）
   function cloneSpeakSentence(text){
     return new Promise(function(resolve){
@@ -1827,17 +1834,42 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   function rvPlayBlob(blob){
     return new Promise(function(resolve){
       if(!blob){ resolve(false); return; }
+      var done = false, src = null, pt = null;
+      function fin(ok){
+        if(done) return; done = true;
+        if(pt) clearTimeout(pt);
+        try{ if(src){ try{ src.stop(); }catch(e){} } }catch(e){}
+        try{ if(rvAudio){ rvAudio.pause(); } }catch(e){}
+        resolve(ok);
+      }
+      var AC = window.AudioContext || window.webkitAudioContext;
+      var ctx = window.__tingAC;
+      // 优先用 AudioContext 播放：点击时已在手势内 resume，不受"合成耗时>手势窗口"的 autoplay 拦截，整段朗读必备
+      if(AC && ctx){
+        blob.arrayBuffer().then(function(ab){
+          try{
+            ctx.decodeAudioData(ab, function(buf){
+              try{
+                src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
+                src.onended = function(){ fin(true); };
+                src.start(0); window.__tingSrc = src;
+                pt = setTimeout(function(){ fin(false); }, 30000);
+              }catch(e){ fin(false); }
+            }, function(){ fin(false); });
+          }catch(e){ fin(false); }
+        }).catch(function(){ fin(false); });
+        return;
+      }
+      // 回退：<audio>（旧浏览器）
       var url=URL.createObjectURL(blob); var a=new Audio(url); rvAudio=a;
-      var done = false;
-      function fin(ok){ if(done) return; done = true; clearTimeout(pt); try{ a.pause(); }catch(e){} URL.revokeObjectURL(url); resolve(ok); }
-      a.onended=function(){ fin(true); };
-      a.onerror=function(){ fin(false); };
-      // 播放超时：18s 还没结束（被 autoplay 静默拦截/音频卡死），强制 fallback 到系统嗓音
-      var pt = setTimeout(function(){ fin(false); }, 18000);
+      function finA(ok){ if(done) return; done = true; clearTimeout(pt); try{ a.pause(); }catch(e){} URL.revokeObjectURL(url); resolve(ok); }
+      a.onended=function(){ finA(true); };
+      a.onerror=function(){ finA(false); };
+      var pt = setTimeout(function(){ finA(false); }, 18000);
       var p;
-      try{ p = a.play(); }catch(e){ fin(false); return; }
-      if(p && p.catch){ p.catch(function(){ fin(false); }); }
-      else if(p===undefined){ fin(false); }
+      try{ p = a.play(); }catch(e){ finA(false); return; }
+      if(p && p.catch){ p.catch(function(){ finA(false); }); }
+      else if(p===undefined){ finA(false); }
     });
   }
   function rvGet(i, ms){
@@ -1854,6 +1886,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   function rvStopRead(){
     rvReading=false; rvReadStop=true;
     if(rvAudio){ try{ rvAudio.pause(); }catch(e){} rvAudio=null; }
+    if(window.__tingSrc){ try{ window.__tingSrc.stop(); }catch(e){} window.__tingSrc=null; }
     if('speechSynthesis' in window) try{ speechSynthesis.cancel(); }catch(e){}
     setRvListen(false); setRvStatus('');
     document.querySelectorAll('#rv-page .si.si-on').forEach(function(e){ e.classList.remove('si-on'); });
