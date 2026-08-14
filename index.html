@@ -254,9 +254,10 @@
 .rv-progress{ height:2px; background:rgba(128,128,128,.25); }
 .rv-progress i{ display:block; height:100%; width:0; background:var(--accent); transition:width .12s; }
 .reader-view[data-theme="night"] .rv-progress i{ background:var(--nc); }
-.rv-stage{ flex:1; overflow:hidden; padding:18px 20px; }
-.rv-page{ height:100%; overflow:auto; line-height:1.95; text-align:justify; font-size:19px; }
-.rv-page p{ margin:0 0 .9em; text-indent:0; }
+.rv-stage{ flex:1; overflow:hidden; padding:14px 16px; }
+.rv-page{ height:100%; overflow:auto; line-height:1.68; text-align:justify; font-size:18px; letter-spacing:.01em; }
+.rv-page p{ margin:0 0 .45em; text-indent:2em; }
+.rv-page p.rv-h{ text-indent:0; text-align:center; font-weight:700; margin:.9em 0 .55em; font-size:1.06em; letter-spacing:.04em; }
 .rv-page .si{ border-radius:4px; padding:0 1px; transition:background .15s, color .15s; }
 .rv-page .si.si-on{ background:rgba(184,144,47,.20); color:var(--accent); box-shadow:0 0 0 1px rgba(184,144,47,.25); }
 .reader-view[data-theme="sepia"] .rv-page .si.si-on{ background:rgba(120,90,30,.18); color:#5a4326; }
@@ -1523,10 +1524,11 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 
   // ---- 克隆音读取：带超时，绝不无限挂起；失败回退系统嗓音 ----
   var TING_READ_TIMEOUT = 40000;
-  function fetchTingRead(text){
+  function fetchTingRead(text, ms){
     return new Promise(function(resolve){
       var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
-      var t = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, TING_READ_TIMEOUT);
+      var to = (typeof ms==='number' && ms>0) ? ms : TING_READ_TIMEOUT;
+      var t = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, to);
       var opt = {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({text:text, nfe_step:16})};
       if(ctrl) opt.signal = ctrl.signal;
       fetch('/api/ting-read', opt)
@@ -1538,17 +1540,27 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
         .catch(function(e){ clearTimeout(t); resolve({ok:false, error:(e&&e.name==='AbortError')?'超时(>'+Math.round(TING_READ_TIMEOUT/1000)+'s)':(e&&e.message||'失败')}); });
     });
   }
+  // 系统嗓音（浏览器内置 TTS）：克隆音不可用时的兜底，保证朗读绝不中断、也绝不卡死
+  var RV_VOICES=[];
+  function rvLoadVoices(){ try{ RV_VOICES = ('speechSynthesis' in window) ? (speechSynthesis.getVoices()||[]) : []; }catch(e){ RV_VOICES=[]; } }
+  if('speechSynthesis' in window){ rvLoadVoices(); try{ speechSynthesis.onvoiceschanged = rvLoadVoices; }catch(e){} }
   function sysSpeak(text){
     return new Promise(function(resolve){
       if(!('speechSynthesis' in window)){ resolve(); return; }
       try{
-        speechSynthesis.cancel();
+        // 注意：不可在 speak 前调用 cancel()，Chrome 会丢弃紧随其后的新语音导致"无声"
         var u=new SpeechSynthesisUtterance(text);
-        var vs=speechSynthesis.getVoices();
-        var pick=vs.find(function(v){ return /zh|cmn|Chinese|Yue|Han/i.test(v.lang); }) || vs[0];
-        if(pick){ u.voice=pick; u.lang=pick.lang; }
-        u.onend=function(){ resolve(); }; u.onerror=function(){ resolve(); };
+        var vs = RV_VOICES.length ? RV_VOICES : (speechSynthesis.getVoices()||[]);
+        var pick = vs.find(function(v){ return /zh|cmn|Chinese|Yue|Han/i.test(v.lang); }) || vs[0];
+        if(pick){ u.voice=pick; u.lang=pick.lang; } else { u.lang='zh-CN'; }
+        var done=false;
+        var finish=function(){ if(done) return; done=true; resolve(); };
+        u.onend=finish; u.onerror=finish; u.onstart=function(){};
+        // 安全兜底：部分浏览器 TTS 偶发不触发 onend，按时结束本句，避免整本书卡住
+        var safety=setTimeout(finish, Math.max(2500, Math.min(20000, text.length*220)));
         speechSynthesis.speak(u);
+        // Chrome 偶发忽略首句：若未进入 speaking 状态则 resume 兜底
+        setTimeout(function(){ if(!done && !speechSynthesis.speaking){ try{ speechSynthesis.resume(); }catch(e){} } }, 120);
       }catch(e){ resolve(); }
     });
   }
@@ -1618,12 +1630,12 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 
 
   // ---- 全屏文本阅读器（微信读书风，单一阅读体验，听书内嵌）----
-  var rvBookId=null, rvBookTitle='', rvPars=[], rvSents=[], rvSentStart=[], rvPages=[], rvPageOfPara=[], rvIdx=0, rvFs=19, rvTheme='day';
+  var rvBookId=null, rvBookTitle='', rvPars=[], rvSents=[], rvSentStart=[], rvPages=[], rvPageOfPara=[], rvIdx=0, rvFs=18, rvTheme='day';
   var RV_FS_K='tingbook_rv_fs', RV_TH_K='tingbook_rv_theme', RV_PR_K='tingbook_rv_prog_';
   var rvReading=false, rvAudio=null, rvReadStop=false, rvCache={}, rvInflight={};
 
   function rvApply(){
-    var fs=parseInt(localStorage.getItem(RV_FS_K)||'19',10); if(fs) rvFs=fs;
+    var fs=parseInt(localStorage.getItem(RV_FS_K)||'18',10); if(fs) rvFs=fs;
     var th=localStorage.getItem(RV_TH_K); if(th) rvTheme=th;
     var page=document.getElementById('rv-page'); if(page) page.style.fontSize=rvFs+'px';
     var fsEl=document.getElementById('rv-fs'); if(fsEl) fsEl.textContent=rvFs;
@@ -1642,10 +1654,20 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     if(!rvSents.length){ rvPars=['']; }
   }
 
+  // 章节标题识别：短行 + 无句中/句末标点 + 匹配常见标题词 → 居中加粗（微信读书风）；普通短句（含标点）仍按正文
+  function rvIsHeading(para){
+    var t=(para||'').trim();
+    if(!t || t.length>20) return false;
+    if(/[，。！？；：、,.!?;:""''（）()《》〈〉<>]/.test(t)) return false;
+    if(/^(第[一二三四五六七八九十百千0-9]+[章回节卷部篇]|序|序言|前言|后记|尾声|楔子|附录|目录|引子|番外)/.test(t)) return true;
+    return false;
+  }
   // 把某段落渲染成 <p>，内含逐句 <span class="si">
   function rvFill(pEl, pi){
+    var para=rvPars[pi]||'';
+    if(rvIsHeading(para)){ pEl.className='rv-h'; }
     var start=rvSentStart[pi]||0;
-    splitSentences(rvPars[pi]||'').forEach(function(s, k){
+    splitSentences(para).forEach(function(s, k){
       if(!s || !s.trim()) return;
       var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=(start+k); sp.textContent=s;
       pEl.appendChild(sp);
@@ -1720,11 +1742,11 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
       a.play().catch(function(){ URL.revokeObjectURL(url); resolve(); });
     });
   }
-  function rvGet(i){
+  function rvGet(i, ms){
     if(i<0||i>=rvSents.length) return Promise.resolve(null);
     if(rvCache[i]!==undefined) return Promise.resolve(rvCache[i]);
     if(rvInflight[i]) return rvInflight[i];
-    rvInflight[i]=fetchTingRead(rvSents[i].text).then(function(r){ var b=(r&&r.ok)?r.blob:null; rvCache[i]=b; rvInflight[i]=null; return b; }).catch(function(){ rvCache[i]=null; rvInflight[i]=null; return null; });
+    rvInflight[i]=fetchTingRead(rvSents[i].text, ms).then(function(r){ var b=(r&&r.ok)?r.blob:null; rvCache[i]=b; rvInflight[i]=null; return b; }).catch(function(){ rvCache[i]=null; rvInflight[i]=null; return null; });
     return rvInflight[i];
   }
   function setRvListen(on){ var b=document.getElementById('rv-listen'); if(b) b.textContent = on ? '⏹ 停止朗读' : '🔊 听书'; }
@@ -1742,11 +1764,17 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     setRvListen(true);
     var arr=rvPages[rvIdx]||[];
     var start = arr.length ? (rvSentStart[arr[0]]||0) : 0;
+    var cloneMode='unknown'; // 'unknown'→首句试克隆音；'on'→全程克隆音；'off'→克隆音不可用，整本立即改系统嗓音（避免逐句 40s 超时等待）
     for(var i=start; i<rvSents.length; i++){
       if(rvReadStop) break;
-      rvGet(i+1); // 预取下一句，减少句间停顿
+      rvGet(i+1, 3500); // 后台预取下一句（快速超时，不阻塞朗读）
       rvGoSentence(i);
-      var blob=await rvGet(i);
+      var blob=null;
+      if(cloneMode!=='off'){
+        blob = await rvGet(i, 3500);
+        if(blob){ cloneMode='on'; }
+        else if(cloneMode==='unknown'){ cloneMode='off'; } // 首句克隆音失败 → 整本改用系统嗓音，立即朗读不再等待
+      }
       if(rvReadStop) break;
       if(blob){ await rvPlayBlob(blob); }
       else { await sysSpeak(rvSents[i].text); }
