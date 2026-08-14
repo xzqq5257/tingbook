@@ -2051,7 +2051,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     rvBookId=id; rvBookTitle=title; rvCache={}; rvInflight={};
     _idb.get('book:'+id).then(function(book){
       var text=(book&&book.text)||'';
-      rvBookAudio=(book&&book.audio)||'';
+      rvBookAudio=(book&&(book.audio||book.file))||'';
       rvParse(text);
       var rv=document.getElementById('reader-view');
       document.getElementById('rv-title').textContent='《'+title+'》';
