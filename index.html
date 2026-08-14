@@ -1472,6 +1472,33 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   var USER_BOOKS_KEY='tingbook_user_books_v1';
   function loadBookIndex(){ try{ return JSON.parse(localStorage.getItem(USER_BOOKS_KEY)||'[]'); }catch(e){ return []; } }
   function saveBookIndex(idx){ try{ localStorage.setItem(USER_BOOKS_KEY, JSON.stringify(idx)); }catch(e){} }
+  // 预置内置书：部署即生效，注入用户书架，用成熟 TTS 链路朗读；不参与 GitHub 文件增删
+  var BUILTIN_BOOKS = [
+    {
+      id: 'mo-yu-er',
+      title: '摸鱼儿·雁丘词',
+      author: '元好问',
+      type: 'txt',
+      ts: 0,
+      size: 356,
+      text: '问世间，情是何物，直教生死相许？天南地北双飞客，老翅几回寒暑。欢乐趣，离别苦，就中更有痴儿女。君应有语：渺万里层云，千山暮雪，只影向谁去？\n\n横汾路，寂寞当年箫鼓，荒烟依旧平楚。招魂楚些何嗟及，山鬼暗啼风雨。天也妒，未信与，莺儿燕子俱黄土。千秋万古，为留待骚人，狂歌痛饮，来访雁丘处。'
+    }
+  ];
+  function seedBuiltinBooks(){
+    var idx = loadBookIndex();
+    var pending = [];
+    var changed = false;
+    BUILTIN_BOOKS.forEach(function(b){
+      if(!idx.some(function(x){ return x.id === b.id; })){
+        idx.unshift({ id:b.id, title:b.title, type:b.type, ts:b.ts, size:b.size });
+        changed = true;
+        pending.push(_idb.set('book:'+b.id, b));
+      }
+    });
+    if(changed) saveBookIndex(idx);
+    return Promise.all(pending);
+  }
+
   async function saveBook(book){
     var idx=loadBookIndex();
     idx.unshift({id:book.id,title:book.title,type:book.type,ts:book.ts,size:book.size});
@@ -1836,8 +1863,8 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     byId('rv-listen').onclick=function(){ rvReadBook(); };
   }
   initReader();
-  // 首次进入阅读栏时渲染书架
-  renderShelf();
+  // 首次进入阅读栏时：先注入预置内置书，再渲染书架
+  seedBuiltinBooks().then(renderShelf);
 })();
 
 // ---------------- 自定义背景（仅本机持久化，不上传服务器） ----------------
