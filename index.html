@@ -1856,7 +1856,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   }
 
   // ---- 克隆音读取：带超时，绝不无限挂起；失败回退系统嗓音 ----
-  var TING_READ_TIMEOUT = 40000;
+  var TING_READ_TIMEOUT = 90000;
   function fetchTingRead(text, ms){
     return new Promise(function(resolve){
       var done = false;
