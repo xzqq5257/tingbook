@@ -573,6 +573,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   <div class="rv-bottom">
     <span class="rv-pinfo" id="rv-pinfo"></span>
     <span id="rv-status" class="rv-status"></span>
+    <button id="rv-listen-full" class="rv-act">📖 整段</button>
     <button id="rv-listen" class="rv-act">🔊 听书</button>
   </div>
   <div class="rv-panel" id="rv-panel">
@@ -1907,6 +1908,36 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     }
     rvStopRead();
   }
+  // 整段朗读：把整本书一次性发给克隆音后端合成一段完整音频播放，完全绕过手机系统 TTS（国行机无中文语音包也能听）
+  async function rvReadBookFull(){
+    if(rvReading){ rvStopRead(); return; }
+    if(!rvSents.length){ setRvStatus('⚠️ 没有可朗读的正文'); return; }
+    unlockMedia();
+    rvReading=true; rvReadStop=false; rvCache={}; rvInflight={};
+    rvMode='clone'; setRvListen(true);
+    var full = rvSents.map(function(s){ return s.text; }).join('').replace(/\s+/g,'');
+    var chunks=[];
+    for(var c=0; c<full.length; c+=1800){ chunks.push(full.slice(c, c+1800)); }
+    if(!chunks.length){ setRvStatus('⚠️ 没有可朗读的正文'); rvStopRead(); return; }
+    var M=chunks.length;
+    for(var k=0; k<chunks.length; k++){
+      if(rvReadStop) break;
+      setRvStatus('📖 整段克隆音 · 合成中 '+(k+1)+'/'+M+'…');
+      var r = await fetchTingRead(chunks[k], 60000);
+      if(rvReadStop) break;
+      var blob = (r && r.ok) ? r.blob : null;
+      var err = (r && !r.ok) ? (r.error||'克隆音后端无响应') : '';
+      if(!blob){
+        setRvStatus('⚠️ 整段合成失败：'+err+'（请确认 ModelScope F5 已启动）');
+        break;
+      }
+      setRvStatus('📖 整段克隆音 · 播放中 '+(k+1)+'/'+M);
+      var ok = await rvPlayBlob(blob);
+      if(!ok){ await new Promise(function(res){ setTimeout(res, 60); }); ok = await rvPlayBlob(blob); }
+      if(rvReadStop) break;
+    }
+    rvStopRead();
+  }
 
   function initReader(){
     rvApply();
@@ -1927,6 +1958,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     byId('rv-fd').onclick=function(){ rvFs=Math.max(14,rvFs-1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
     Array.prototype.forEach.call(document.querySelectorAll('.rv-theme'), function(b){ b.onclick=function(){ rvTheme=b.dataset.t; byId('reader-view').dataset.theme=rvTheme; try{localStorage.setItem(RV_TH_K,rvTheme);}catch(e){} rvApply(); }; });
     byId('rv-listen').onclick=function(){ rvReadBook(); };
+    byId('rv-listen-full').onclick=function(){ rvReadBookFull(); };
   }
   initReader();
   // 首次进入阅读栏时：先注入预置内置书，再渲染书架
