@@ -1869,25 +1869,41 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     for(var i=start; i<rvSents.length; i++){
       if(rvReadStop) break;
       var n = i - start + 1;
-      setRvStatus('🎧 克隆音 '+n+'/'+total+' · 请求中…');
-      var to = 6000;
-      rvGet(i+1, 6000);
       rvGoSentence(i);
-      var r = await rvGet(i, to);
+      setRvStatus('🎧 克隆音 '+n+'/'+total+' · 请求中…');
+      // 后台异步拉克隆音（不阻塞当前朗读，避免后台 setTimeout/fetch 被 Chrome 节流到 1 分钟）
+      var fp = rvGet(i, 8000);
+      // 等待最多 1.2s 让克隆音赶上来；超时则立即切系统嗓音（绝不静默卡住）
+      var firstWait = (i===start) ? 1200 : 800;
+      var blob = await Promise.race([
+        fp.then(function(r){ return r && r.blob ? r.blob : null; }),
+        new Promise(function(res){ setTimeout(function(){ res(null); }, firstWait); })
+      ]);
       if(rvReadStop) break;
-      var blob = r ? r.blob : null;
-      var cErr = r ? r.err : '';
-      var played=false;
-      if(blob){ setRvStatus('🎧 克隆音 '+n+'/'+total+' · 播放中…'); played = await rvPlayBlob(blob); }
-      if(!played){
-        // 克隆音不可用 / 被 autoplay 拦截 / 超时 → 系统嗓音兜底（绝不静默吞掉）
-        if(rvMode!=='sys'){ rvMode='sys'; setRvStatus('🔊 系统嗓音（克隆音：'+(cErr||'不可用')+'，已自动切换）'); }
-        try { await sysSpeak(rvSents[i].text); }
-        catch(err){ setRvStatus('⚠️ 无法朗读：'+(err&&err.message||err)); break; }
-      } else if(rvMode==='clone'){
-        setRvStatus('🎧 克隆音 '+n+'/'+total);
+      var played = false;
+      if(blob){
+        setRvStatus('🎧 克隆音 '+n+'/'+total+' · 播放中…');
+        played = await rvPlayBlob(blob);
       }
-      if(rvReadStop) break;
+      if(played){
+        rvMode='clone';
+        setRvStatus('🎧 克隆音 '+n+'/'+total);
+      } else {
+        // 克隆音不可用 / 被 autoplay 拦截 / 超时 → 系统嗓音兜底（绝不静默吞）
+        rvMode='sys';
+        setRvStatus('🔊 系统嗓音（克隆音：'+(blob? '播放失败':'不可用/超时')+'，已自动切换）');
+        try { await sysSpeak(rvSents[i].text); }
+        catch(err){
+          // 系统嗓音失败：浏览器无中文语音包
+          setRvStatus('⚠️ 无法朗读：'+(err&&err.message||err));
+          // 仍等当前 fetch 拿到克隆音再放（避免一句话都不出）；并尝试播下一句
+          var blob2 = await fp.then(function(r){ return r && r.blob ? r.blob : null; }).catch(function(){ return null; });
+          if(blob2){ var p2 = await rvPlayBlob(blob2); if(p2) setRvStatus('🎧 克隆音 '+n+'/'+total+' · 播放中…'); }
+          break;
+        }
+      }
+      // 预拉下一句克隆音
+      if(i+1 < rvSents.length) rvGet(i+1, 6000);
     }
     rvStopRead();
   }
