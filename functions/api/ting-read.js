@@ -1,93 +1,160 @@
 // Cloudflare Pages Function: 听我读·克隆音 的代理。
-// 前端把要朗读的文本 POST 到这里 -> 我们转发到真正运行 F5-TTS 的后端服务（F5_TTS_URL），
-// 再把合成好的音频（wav）原样返回给浏览器播放。
+// 前端把要朗读的文本 POST 到这里 -> 我们转发到阿里云百炼 Model Studio 的
+// CosyVoice v3.5 语音合成服务，再把合成好的音频（wav）原样返回给浏览器播放。
 //
-// 为什么需要这一层：Cloudflare Pages 静态站无法运行 F5-TTS（需要 torch + 1.3GB 模型）。
-// 因此 F5 推理服务要跑在「能运行 torch 的机器」上（你的 GPU 本机 / HuggingFace Space / 云 GPU），
-// 并通过 F5_TTS_URL 这个环境变量暴露给本函数。这样：
-//   - 前端只和同源的 /api/ting-read 通信（无 CORS、无跨域密钥泄露）；
-//   - F5 服务的真实地址只存在于 Cloudflare 环境变量里，不进前端代码。
+// 流程：
+//   1) 首次调用：用存放在 listen-to-your-voice/ltyv_reference.wav 的参考音
+//      在阿里云百炼注册一个 CosyVoice v3.5 音色（一次免费），拿到 voice_id 后
+//      缓存到 TINGBOOK_KV（key: cosyvoice:voice_id），后续请求直接复用。
+//   2) 每次朗读：传 text + voice_id 调 SpeechSynthesizer，把返回的音频
+//      原样转发给前端。
 //
-// 需要的 Cloudflare 环境变量（Dashboard -> Settings -> Environment variables，Production + Preview）：
-//   F5_TTS_URL   例如 https://你的-f5服务地址  （末尾不要带斜杠）
+// 需要的 Cloudflare 环境变量（Dashboard -> Settings -> Environment variables，Production + Preview 都设）：
+//   ALIYUN_BAILIAN_API_KEY   用户的百炼 API Key（sk-ws-... 开头）
+//   ALIYUN_WORKSPACE_ID      业务空间 ID（ws-... 开头）
+// 可选：
+//   COSYVOICE_REF_URL        参考音的公网 URL（默认 https://tingbook.pages.dev/listen-to-your-voice/ltyv_reference.wav）
+//   COSYVOICE_PREFIX         音色名前缀（默认 wuyongss）
+//   COSYVOICE_MODEL          模型名（默认 cosyvoice-v3.5-plus，可改 cosyvoice-v3.5-flash）
 //
-// 安全提示：本接口对全站访客开放（否则网页端无法调用）。如需防滥用，可在前面加一层简单的速率限制或密钥。
+// 已存在的依赖：
+//   wrangler.toml 里 [[kv_namespaces]] binding="TINGBOOK_KV" 已绑好，
+//   用于缓存 voice_id（避免每次注册）。
+//
+// 安全提示：本接口对全站访客开放（前端必须能调用）。API Key 只放在 Cloudflare 环境变量，
+// 绝不进前端代码、不进 git。
 export const onRequestPost = async ({ request, env }) => {
-  const base = (env.F5_TTS_URL && env.F5_TTS_URL.trim());
-  if (!base) {
-    return json({ ok: false, error: "未配置 F5_TTS_URL 环境变量（请在 Cloudflare 配置指向可运行 F5-TTS 的服务）" }, 500);
-  }
+  const apiKey = (env.ALIYUN_BAILIAN_API_KEY || "").trim();
+  const wsId = (env.ALIYUN_WORKSPACE_ID || "").trim();
+  if (!apiKey) return json({ ok: false, error: "未配置 ALIYUN_BAILIAN_API_KEY 环境变量（请在 Cloudflare Pages 后台添加百炼 API Key）" }, 500);
+  if (!wsId) return json({ ok: false, error: "未配置 ALIYUN_WORKSPACE_ID 环境变量（请在 Cloudflare Pages 后台添加百炼业务空间 ID）" }, 500);
+
   let body;
-  try {
-    body = await request.json();
-  } catch (e) {
+  try { body = await request.json(); } catch (e) {
     return json({ ok: false, error: "请求体不是合法 JSON" }, 400);
   }
   const text = (body.text || "").trim();
-  if (!text) {
-    return json({ ok: false, error: "缺少 text 字段" }, 400);
-  }
-  const payloadObj = {
-    text: text.slice(0, 2000),
-    ref: body.ref || "",
-    ref_text: body.ref_text || "",
-    nfe_step: Number(body.nfe_step) || 16,
-    speed: Number(body.speed) || 1.0,
-  };
+  if (!text) return json({ ok: false, error: "缺少 text 字段" }, 400);
 
-  // 若配置了音色仓库（KV）且存在「激活音色」，把该音色的参考音作为 ref_audio（base64）
-  // 传给 F5，实现「用户选定音色」的克隆，而非依赖 F5 服务端固定参考音。
-  const kv = env.TINGBOOK_KV;
-  if (kv) {
+  // 1) 拿 voice_id（优先从 KV 读，没有就注册一次）
+  let voiceId = null;
+  if (env.TINGBOOK_KV) {
+    try { voiceId = await env.TINGBOOK_KV.get("cosyvoice:voice_id"); } catch (e) { /* 忽略，回落到注册 */ }
+  }
+  if (!voiceId) {
     try {
-      const activeId = await kv.get("voice:active");
-      if (activeId) {
-        const audioB64 = await kv.get(`voice:audio:${activeId}`);
-        if (audioB64) {
-          payloadObj.ref_audio = audioB64;
-          payloadObj.ref = ""; // 不再让 F5 用服务端默认参考音
-        }
-      }
+      voiceId = await enrollVoice(apiKey, wsId, env);
     } catch (e) {
-      // 忽略：回退到 F5 默认参考音
+      return json({ ok: false, error: "音色注册失败：" + (e.message || String(e)) }, 502);
+    }
+    if (voiceId && env.TINGBOOK_KV) {
+      try {
+        // 缓存 1 年。百炼文档说"1 年没用会自动删音色"——这里反着，永远不主动删 KV，
+        // 即使服务端删了，下次启动也会重新注册。
+        await env.TINGBOOK_KV.put("cosyvoice:voice_id", voiceId, { expirationTtl: 60 * 60 * 24 * 365 });
+      } catch (e) { /* 忽略，下次再注册 */ }
     }
   }
+  if (!voiceId) return json({ ok: false, error: "无法获取 CosyVoice voice_id" }, 502);
 
-  const payload = JSON.stringify(payloadObj);
-
-  // 上游 F5 推理在 CPU 上可能很慢，给它一个上限；超时/异常都返回清晰 JSON，
-  // 避免 Cloudflare 网关把请求拖到平台wall上限而返回空响应（前端会一直等 → 卡顿）。
-  const ctrl = new AbortController();
-  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 38000);
-  let upstream;
+  // 2) 合成语音
   try {
-    upstream = await fetch(base.replace(/\/+$/, "") + "/generate", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: payload,
-      signal: ctrl.signal,
+    const audio = await synthesize(apiKey, wsId, env, voiceId, text);
+    return new Response(audio, {
+      status: 200,
+      headers: {
+        "content-type": "audio/wav",
+        "cache-control": "no-store",
+      },
     });
   } catch (e) {
-    clearTimeout(to);
-    return json({ ok: false, error: "上游 F5 服务不可达或无响应（" + (e && e.name === "AbortError" ? "超时" : e.message) + "）" }, 504);
+    return json({ ok: false, error: "语音合成失败：" + (e.message || String(e)) }, 502);
   }
-  clearTimeout(to);
-
-  if (!upstream.ok) {
-    let msg = "";
-    try { msg = await upstream.text(); } catch (e) {}
-    return json({ ok: false, error: "上游 F5 服务返回错误：" + msg.slice(0, 300) }, 502);
-  }
-
-  const buf = await upstream.arrayBuffer();
-  return new Response(buf, {
-    status: 200,
-    headers: {
-      "content-type": "audio/wav",
-      "cache-control": "no-store",
-    },
-  });
 };
+
+// 在阿里云百炼注册一个 CosyVoice v3.5 音色，返回 voice_id
+async function enrollVoice(apiKey, wsId, env) {
+  const refUrl = (env.COSYVOICE_REF_URL || "https://tingbook.pages.dev/listen-to-your-voice/ltyv_reference.wav").trim();
+  const prefix = (env.COSYVOICE_PREFIX || "wuyongss").trim().slice(0, 16);
+  const model = (env.COSYVOICE_MODEL || "cosyvoice-v3.5-plus").trim();
+  const url = `https://${wsId}.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/customization`;
+  const ctrl = new AbortController();
+  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 25000);
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "voice-enrollment",
+        input: {
+          action: "create_voice",
+          target_model: model,
+          prefix: prefix,
+          url: refUrl,
+        },
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(to);
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "");
+      throw new Error(`enroll HTTP ${r.status} - ${txt.slice(0, 200)}`);
+    }
+    const j = await r.json();
+    const id = j && j.output && j.output.voice_id;
+    if (!id) throw new Error("enroll 返回没有 voice_id：" + JSON.stringify(j).slice(0, 200));
+    return id;
+  } catch (e) {
+    clearTimeout(to);
+    throw e;
+  }
+}
+
+// 用 voice_id 合成语音，返回 wav 二进制（ArrayBuffer）
+async function synthesize(apiKey, wsId, env, voiceId, text) {
+  const model = (env.COSYVOICE_MODEL || "cosyvoice-v3.5-plus").trim();
+  const url = `https://${wsId}.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer`;
+  const body = {
+    model,
+    input: {
+      text: text.slice(0, 2000),
+      voice: voiceId,
+      format: "wav",
+      sample_rate: 24000,
+    },
+  };
+  // 留个 FreeStyle 扩展口（前端暂未启用）
+  if (typeof env.COSYVOICE_INSTRUCTIONS === "string" && env.COSYVOICE_INSTRUCTIONS.trim()) {
+    body.input.instructions = env.COSYVOICE_INSTRUCTIONS.trim().slice(0, 200);
+  }
+  const ctrl = new AbortController();
+  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 25000);
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    clearTimeout(to);
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "");
+      throw new Error(`synth HTTP ${r.status} - ${txt.slice(0, 200)}`);
+    }
+    const buf = await r.arrayBuffer();
+    if (!buf || buf.byteLength < 200) throw new Error(`synth 返回空音频（${buf ? buf.byteLength : 0} 字节）`);
+    return buf;
+  } catch (e) {
+    clearTimeout(to);
+    throw e;
+  }
+}
 
 export const onRequest = (ctx) => {
   if (ctx.request.method === "POST") return onRequestPost(ctx);
