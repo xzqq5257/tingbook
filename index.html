@@ -312,8 +312,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   body{ background:transparent!important; }
   #bg-layer{ position:fixed; inset:0; z-index:-2; background:var(--bg); opacity:.3;
     background-size:cover; background-position:center; background-repeat:no-repeat; transition:background .3s, opacity .3s; }
-  .reader-view::before{ content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
-    background:url(assets/bg-girl.jpg) center/cover no-repeat; opacity:.3; }
+  /* 读者页不再叠古风底图（以前 ::before 铺 assets/bg-girl.jpg 让整屏看起来像空白）*/
   /* 音乐栏：去暗渐变，统一亮色 */
   #tab-music{ background:var(--bg)!important; color:var(--fg)!important; }
   #tab-music .sec-head{ color:var(--fg)!important; }
@@ -2048,19 +2047,28 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   function rvBuild(){
     rvPages=[]; rvPageOfPara=new Array(rvPars.length).fill(0);
     var page=document.getElementById('rv-page'); if(!page) return;
-    var sv=page.style.visibility; page.style.visibility='hidden';
-    page.innerHTML=''; var cur=[];
+    var rvStage=document.querySelector('.rv-stage');
+    page.style.visibility='hidden';
+    page.innerHTML='';
+    // 强制一次 reflow 再读高度，避免首次测量拿到 0
+    void (rvStage?rvStage.offsetHeight:page.offsetHeight);
+    var cap = (page.clientHeight||400) - 4; // 每页允许比可见高度多 4px，容许误差
+    if(!rvPars.length) rvPars=[''];
+    var cur=[];
     rvPars.forEach(function(para, pi){
       var p=document.createElement('p'); rvFill(p, pi); page.appendChild(p);
-      if(page.scrollHeight>page.clientHeight && cur.length>0){
+      // 关键：appendChild 后强制 layout，再读 scrollHeight
+      void page.offsetHeight;
+      if(page.scrollHeight > cap && cur.length > 0){
         page.removeChild(p); rvPages.push(cur); cur=[pi];
         var p2=document.createElement('p'); rvFill(p2, pi); page.appendChild(p2);
+        void page.offsetHeight;
       } else cur.push(pi);
     });
     if(cur.length) rvPages.push(cur);
     if(!rvPages.length) rvPages=[[]];
     rvPages.forEach(function(arr,pg){ arr.forEach(function(pi){ rvPageOfPara[pi]=pg; }); });
-    page.style.visibility=sv;
+    page.style.visibility='';
   }
 
   function rvRender(){
