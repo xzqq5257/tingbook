@@ -245,6 +245,7 @@
 .ebook-empty{ color:var(--muted); padding:20px 4px; text-align:center; }
 /* 全屏文本阅读器（微信读书风） */
 .reader-view{ display:none; position:fixed; inset:0; z-index:200; flex-direction:column; background:#f5f0e6; color:#33302a; }
+.reader-view > *{ position:relative; z-index:1; }
 .reader-view.show{ display:flex; }
 .reader-view[data-theme="sepia"]{ background:#e9dcc0; color:#4a3f2a; }
 .reader-view[data-theme="night"]{ background:#14151b; color:#cfcfd8; }
@@ -309,8 +310,10 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   /* ============ 统一亮色主题覆盖（全站） ============ */
   html{ background:var(--bg); }
   body{ background:transparent!important; }
-  #bg-layer{ position:fixed; inset:0; z-index:-2; background:var(--bg);
-    background-size:cover; background-position:center; background-repeat:no-repeat; transition:background .3s; }
+  #bg-layer{ position:fixed; inset:0; z-index:-2; background:var(--bg); opacity:.3;
+    background-size:cover; background-position:center; background-repeat:no-repeat; transition:background .3s, opacity .3s; }
+  .reader-view::before{ content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+    background:url(assets/bg-girl.jpg) center/cover no-repeat; opacity:.3; }
   /* 音乐栏：去暗渐变，统一亮色 */
   #tab-music{ background:var(--bg)!important; color:var(--fg)!important; }
   #tab-music .sec-head{ color:var(--fg)!important; }
@@ -1919,6 +1922,8 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   var bgLayer=document.getElementById('bg-layer');
   if(!bgLayer) return;
   var BGK='tingbook_bg_v1';
+  var BUILTIN_BG='assets/bg-girl.jpg'; // 默认古风背景图
+  try{ if(!localStorage.getItem(BGK)){ applyBg(BUILTIN_BG); } }catch(e){ applyBg(BUILTIN_BG); }
   var presets=[
     {name:'暖纸', css:'linear-gradient(180deg,#f4f1ea,#efe9df)'},
     {name:'青瓷', css:'linear-gradient(160deg,#eaf3f0,#dcebe6)'},
@@ -1927,11 +1932,11 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     {name:'薄暮', css:'linear-gradient(160deg,#eef1f6,#dfe6f0)'}
   ];
   function applyBg(val){
-    if(!val){ bgLayer.style.background=''; bgLayer.style.backgroundImage=''; try{localStorage.removeItem(BGK);}catch(e){} return; }
+    if(!val){ bgLayer.style.background=''; bgLayer.style.backgroundImage='none'; bgLayer.style.opacity='1'; try{localStorage.removeItem(BGK);}catch(e){} return; }
     if(val.indexOf('gradient')>=0){
-      bgLayer.style.backgroundImage='none'; bgLayer.style.background=val;
+      bgLayer.style.backgroundImage='none'; bgLayer.style.background=val; bgLayer.style.opacity='1';
     } else {
-      bgLayer.style.backgroundImage='url('+val+')';
+      bgLayer.style.background=''; bgLayer.style.backgroundImage='url('+val+')'; bgLayer.style.opacity='.3'; // 图片按 30% 透明叠加
     }
     try{localStorage.setItem(BGK,val);}catch(e){}
   }
