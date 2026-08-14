@@ -272,6 +272,7 @@
 .rv-pinfo{ font-size:12px; opacity:.6; }
 .rv-act{ background:var(--accent); color:#fff; border:none; border-radius:18px; padding:7px 16px; font-size:13px; cursor:pointer; }
 .reader-view[data-theme="night"] .rv-act{ background:var(--nc); }
+.rv-status{ flex:1; text-align:right; margin-right:10px; font-size:12px; color:var(--muted); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .rv-panel{ display:none; padding:14px 16px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid rgba(128,128,128,.2); background:rgba(0,0,0,.04); }
 .reader-view[data-theme="night"] .rv-panel{ background:rgba(255,255,255,.04); }
 .rv-panel.show{ display:block; }
@@ -568,6 +569,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   </div>
   <div class="rv-bottom">
     <span class="rv-pinfo" id="rv-pinfo"></span>
+    <span id="rv-status" class="rv-status"></span>
     <button id="rv-listen" class="rv-act">🔊 听书</button>
   </div>
   <div class="rv-panel" id="rv-panel">
@@ -1583,28 +1585,39 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   }
   // speak 前需清理上一句残留队列（否则 Chrome 会丢句/吞声），但 cleanup 与 speak 之间不留竞态
   function sysSpeak(text){
-    return new Promise(function(resolve){
-      if(!('speechSynthesis' in window)){ resolve(); return; }
+    return new Promise(function(resolve, reject){
+      if(!('speechSynthesis' in window)){ reject(new Error('该浏览器不支持语音合成')); return; }
       if(!text || !text.trim()){ resolve(); return; }
-      try{
-        var u=new SpeechSynthesisUtterance(text);
-        var pick=rvPickVoice();
-        if(pick){ u.voice=pick; u.lang=pick.lang; } else { u.lang='zh-CN'; }
-        u.rate=1.0; u.pitch=1.0;
+      function doSpeak(){
+        var vs = ('getVoices' in speechSynthesis) ? (speechSynthesis.getVoices()||[]) : [];
+        var pick = vs.find(function(v){ return /zh|cmn|Chinese|Yue|Han/i.test(v.lang); }) || vs[0] || null;
+        if(!pick){ reject(new Error('该浏览器无可用语音（请在系统/浏览器设置中安装中文语音包）')); return; }
+        try{
+          var u=new SpeechSynthesisUtterance(text);
+          u.voice=pick; u.lang=pick.lang||'zh-CN'; u.rate=1.0; u.pitch=1.0;
+          var done=false;
+          var finish=function(){ if(done) return; done=true; try{ if(working===u) working=null; }catch(e){} resolve(); };
+          u.onend=finish;
+          u.onerror=function(ev){ if(ev && ev.error==='interrupted'){ if(!done){ done=true; resolve(); } } else { finish(); } };
+          var safety=setTimeout(finish, Math.max(3000, Math.min(25000, text.length*260)));
+          try{ if(working && speechSynthesis.speaking) speechSynthesis.cancel(); }catch(e){}
+          working=u;
+          speechSynthesis.speak(u);
+        }catch(e){ reject(e); }
+      }
+      // 关键修复：Chrome 首句常因 voices 尚未就绪而被静默吞掉；等待 onvoiceschanged 再朗读（最多 250ms 兜底）
+      if(('getVoices' in speechSynthesis) && (speechSynthesis.getVoices()||[]).length){ doSpeak(); }
+      else {
         var done=false;
-        var finish=function(){ if(done) return; done=true; try{ if(working===u) working=null; }catch(e){} resolve(); };
-        u.onend=finish; u.onerror=function(ev){ // 偶发 'interrupted' 属正常清理，不计失败
-          if(ev && ev.error==='interrupted'){ if(!done){ done=true; resolve(); } } else { finish(); } };
-        // 硬超时兜底：最坏情况下按时结束本句，避免整本书卡住（按字数估算，最长 25s）
-        var safety=setTimeout(finish, Math.max(3000, Math.min(25000, text.length*260)));
-        // 清理上一句：先把残留队列取消，再立即 speak 本句（同一 tick，Chrome 不会吞）
-        try{ if(working && speechSynthesis.speaking) speechSynthesis.cancel(); }catch(e){}
-        working=u;
-        speechSynthesis.speak(u);
-      }catch(e){ resolve(); }
+        var to=setTimeout(function(){ if(done) return; done=true; doSpeak(); }, 250);
+        try{ speechSynthesis.onvoiceschanged=function(){ if(done) return; done=true; clearTimeout(to); doSpeak(); }; }catch(e){}
+      }
     });
   }
   var working=null;
+  // 在用户点击手势内调用一次：用一次静音 speak 建立「允许媒体播放/语音合成」的 sticky 激活，
+  // 避免等待克隆音（数秒）期间用户手势激活过期，导致浏览器 autoplay 策略拦截 Audio.play / speechSynthesis
+  function unlockMedia(){ try{ if('speechSynthesis' in window){ var u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); } }catch(e){} }
   // 单句克隆音朗读（带超时；失败时回退系统嗓音，朗读不中断）
   function cloneSpeakSentence(text){
     return new Promise(function(resolve){
@@ -1634,7 +1647,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
       var card=document.createElement('div'); card.className='ebook-cover';
       card.innerHTML='<div class="ec-title">'+esc(b.title)+'</div><div class="ec-meta">'+b.type.toUpperCase()+' · '+fmtSize(b.size)+'</div>';
       var listen=document.createElement('button'); listen.className='ec-listen'; listen.textContent='🔊 听书'; listen.title='用克隆音/系统嗓音朗读';
-      listen.onclick=function(e){ e.stopPropagation(); openReader(b.id, b.title, true); };
+      listen.onclick=function(e){ e.stopPropagation(); unlockMedia(); openReader(b.id, b.title, true); };
       card.appendChild(listen);
       var del=document.createElement('button'); del.className='ec-del'; del.textContent='🗑'; del.title='删除';
       del.onclick=function(e){ e.stopPropagation(); if(confirm('删除《'+b.title+'》？')){ var i=loadBookIndex(); saveBookIndex(i.filter(function(x){ return x.id!==b.id; })); _idb.set('book:'+b.id, null); renderShelf(); } };
@@ -1674,6 +1687,8 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   var rvBookId=null, rvBookTitle='', rvPars=[], rvSents=[], rvSentStart=[], rvPages=[], rvPageOfPara=[], rvIdx=0, rvFs=17, rvTheme='day';
   var RV_FS_K='tingbook_rv_fs', RV_TH_K='tingbook_rv_theme', RV_PR_K='tingbook_rv_prog_';
   var rvReading=false, rvAudio=null, rvReadStop=false, rvCache={}, rvInflight={};
+  var rvMode='clone';
+  function setRvStatus(t){ var el=document.getElementById('rv-status'); if(el) el.textContent = t||''; }
 
   function rvApply(){
     var fs=parseInt(localStorage.getItem(RV_FS_K)||'17',10); if(fs) rvFs=fs;
@@ -1797,11 +1812,13 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   }
   function rvPlayBlob(blob){
     return new Promise(function(resolve){
-      if(!blob){ resolve(); return; }
+      if(!blob){ resolve(false); return; }
       var url=URL.createObjectURL(blob); var a=new Audio(url); rvAudio=a;
-      a.onended=function(){ URL.revokeObjectURL(url); resolve(); };
-      a.onerror=function(){ URL.revokeObjectURL(url); resolve(); };
-      a.play().catch(function(){ URL.revokeObjectURL(url); resolve(); });
+      a.onended=function(){ URL.revokeObjectURL(url); resolve(true); };
+      a.onerror=function(){ URL.revokeObjectURL(url); resolve(false); };
+      var p=a.play();
+      if(p && p.catch){ p.catch(function(){ URL.revokeObjectURL(url); resolve(false); }); }
+      else { URL.revokeObjectURL(url); resolve(false); }
     });
   }
   function rvGet(i, ms){
@@ -1816,27 +1833,36 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     rvReading=false; rvReadStop=true;
     if(rvAudio){ try{ rvAudio.pause(); }catch(e){} rvAudio=null; }
     if('speechSynthesis' in window) try{ speechSynthesis.cancel(); }catch(e){}
-    setRvListen(false);
+    setRvListen(false); setRvStatus('');
     document.querySelectorAll('#rv-page .si.si-on').forEach(function(e){ e.classList.remove('si-on'); });
   }
   async function rvReadBook(){
     if(rvReading){ rvStopRead(); return; }
-    if(!rvSents.length) return;
+    if(!rvSents.length){ setRvStatus('⚠️ 没有可朗读的正文'); return; }
+    unlockMedia();
     rvReading=true; rvReadStop=false; rvCache={}; rvInflight={};
-    setRvListen(true);
+    rvMode='clone'; setRvListen(true); setRvStatus('🎧 克隆音准备中…');
     var arr=rvPages[rvIdx]||[];
     var start = arr.length ? (rvSentStart[arr[0]]||0) : 0;
     for(var i=start; i<rvSents.length; i++){
       if(rvReadStop) break;
       var first = (i===start);
-      // 首句给较长超时（F5 重启冷启动可能 >几秒），后续句 6s；后台预取下一句
-      var to = first ? 12000 : 6000;
+      // 首句也只给 6s：F5 慢/挂时尽快切系统嗓音，避免久等无反馈
+      var to = first ? 6000 : 6000;
       rvGet(i+1, 6000);
       rvGoSentence(i);
       var blob = await rvGet(i, to);
       if(rvReadStop) break;
-      if(blob){ await rvPlayBlob(blob); }
-      else { await sysSpeak(rvSents[i].text); } // 单句克隆音失败 → 该句用系统嗓音兜底，下一句仍试克隆音
+      var played=false;
+      if(blob){ played = await rvPlayBlob(blob); }
+      if(!played){
+        // 克隆音不可用 / 被 autoplay 拦截 → 系统嗓音兜底（绝不静默吞掉）
+        if(rvMode!=='sys'){ rvMode='sys'; setRvStatus('🔊 系统嗓音（克隆音不可用，已自动切换）'); }
+        try { await sysSpeak(rvSents[i].text); }
+        catch(err){ setRvStatus('⚠️ 无法朗读：'+(err&&err.message||err)); break; }
+      } else if(rvMode==='clone'){
+        setRvStatus('🎧 克隆音');
+      }
       if(rvReadStop) break;
     }
     rvStopRead();
