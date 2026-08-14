@@ -1561,18 +1561,28 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   var TING_READ_TIMEOUT = 40000;
   function fetchTingRead(text, ms){
     return new Promise(function(resolve){
-      var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+      var done = false;
       var to = (typeof ms==='number' && ms>0) ? ms : TING_READ_TIMEOUT;
-      var t = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, to);
+      var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+      // 硬超时兜底：即使 AbortController/fetch 异常或 abort 失效，也强制 to 内 resolve，避免吊死朗读
+      var hardT = setTimeout(function(){
+        if(done) return; done = true;
+        try{ if(ctrl) ctrl.abort(); }catch(e){}
+        resolve({ok:false, error:'前端超时(>'+Math.round(to/1000)+'s)'});
+      }, to);
+      if(ctrl) setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, to);
       var opt = {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({text:text, nfe_step:16})};
       if(ctrl) opt.signal = ctrl.signal;
-      fetch('/api/ting-read', opt)
-        .then(function(r){
-          if(!r.ok) return r.json().catch(function(){return {};}).then(function(j){ throw new Error(j.error || ('HTTP '+r.status)); });
-          return r.blob();
-        })
-        .then(function(blob){ clearTimeout(t); if(!blob || !blob.size) return resolve({ok:false, error:'空音频'}); resolve({ok:true, blob:blob}); })
-        .catch(function(e){ clearTimeout(t); resolve({ok:false, error:(e&&e.name==='AbortError')?'超时(>'+Math.round(TING_READ_TIMEOUT/1000)+'s)':(e&&e.message||'失败')}); });
+      function finish(r){ if(done) return; done = true; clearTimeout(hardT); resolve(r); }
+      try{
+        fetch('/api/ting-read', opt)
+          .then(function(r){
+            if(!r.ok) return r.json().catch(function(){return {};}).then(function(j){ throw new Error(j.error || ('HTTP '+r.status)); });
+            return r.blob();
+          })
+          .then(function(blob){ if(!blob || !blob.size) return finish({ok:false, error:'空音频'}); finish({ok:true, blob:blob}); })
+          .catch(function(e){ finish({ok:false, error:(e&&e.name==='AbortError')?'超时(>'+Math.round(to/1000)+'s)':(e&&e.message||'失败')}); });
+      }catch(e){ finish({ok:false, error:(e&&e.message||'请求失败')}); }
     });
   }
   // 系统嗓音（浏览器内置 TTS）：克隆音不可用时的兜底，保证朗读绝不中断、也绝不卡死
@@ -1814,18 +1824,26 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     return new Promise(function(resolve){
       if(!blob){ resolve(false); return; }
       var url=URL.createObjectURL(blob); var a=new Audio(url); rvAudio=a;
-      a.onended=function(){ URL.revokeObjectURL(url); resolve(true); };
-      a.onerror=function(){ URL.revokeObjectURL(url); resolve(false); };
-      var p=a.play();
-      if(p && p.catch){ p.catch(function(){ URL.revokeObjectURL(url); resolve(false); }); }
-      else { URL.revokeObjectURL(url); resolve(false); }
+      var done = false;
+      function fin(ok){ if(done) return; done = true; clearTimeout(pt); try{ a.pause(); }catch(e){} URL.revokeObjectURL(url); resolve(ok); }
+      a.onended=function(){ fin(true); };
+      a.onerror=function(){ fin(false); };
+      // 播放超时：18s 还没结束（被 autoplay 静默拦截/音频卡死），强制 fallback 到系统嗓音
+      var pt = setTimeout(function(){ fin(false); }, 18000);
+      var p;
+      try{ p = a.play(); }catch(e){ fin(false); return; }
+      if(p && p.catch){ p.catch(function(){ fin(false); }); }
+      else if(p===undefined){ fin(false); }
     });
   }
   function rvGet(i, ms){
-    if(i<0||i>=rvSents.length) return Promise.resolve(null);
-    if(rvCache[i]!==undefined) return Promise.resolve(rvCache[i]);
+    if(i<0||i>=rvSents.length) return Promise.resolve({blob:null, err:'out of range'});
+    if(rvCache[i]!==undefined) return Promise.resolve({blob:rvCache[i], err:''});
     if(rvInflight[i]) return rvInflight[i];
-    rvInflight[i]=fetchTingRead(rvSents[i].text, ms).then(function(r){ var b=(r&&r.ok)?r.blob:null; rvCache[i]=b; rvInflight[i]=null; return b; }).catch(function(){ rvCache[i]=null; rvInflight[i]=null; return null; });
+    rvInflight[i]=fetchTingRead(rvSents[i].text, ms).then(function(r){
+      var b=(r&&r.ok)?r.blob:null; rvCache[i]=b; rvInflight[i]=null;
+      return {blob:b, err:(r&&!r.ok)?(r.error||'失败'):''};
+    }).catch(function(e){ rvCache[i]=null; rvInflight[i]=null; return {blob:null, err:(e&&e.message)||'异常'}; });
     return rvInflight[i];
   }
   function setRvListen(on){ var b=document.getElementById('rv-listen'); if(b) b.textContent = on ? '⏹ 停止朗读' : '🔊 听书'; }
@@ -1841,27 +1859,30 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     if(!rvSents.length){ setRvStatus('⚠️ 没有可朗读的正文'); return; }
     unlockMedia();
     rvReading=true; rvReadStop=false; rvCache={}; rvInflight={};
-    rvMode='clone'; setRvListen(true); setRvStatus('🎧 克隆音准备中…');
+    rvMode='clone'; setRvListen(true);
     var arr=rvPages[rvIdx]||[];
     var start = arr.length ? (rvSentStart[arr[0]]||0) : 0;
+    var total = rvSents.length - start;
     for(var i=start; i<rvSents.length; i++){
       if(rvReadStop) break;
-      var first = (i===start);
-      // 首句也只给 6s：F5 慢/挂时尽快切系统嗓音，避免久等无反馈
-      var to = first ? 6000 : 6000;
+      var n = i - start + 1;
+      setRvStatus('🎧 克隆音 '+n+'/'+total+' · 请求中…');
+      var to = 6000;
       rvGet(i+1, 6000);
       rvGoSentence(i);
-      var blob = await rvGet(i, to);
+      var r = await rvGet(i, to);
       if(rvReadStop) break;
+      var blob = r ? r.blob : null;
+      var cErr = r ? r.err : '';
       var played=false;
-      if(blob){ played = await rvPlayBlob(blob); }
+      if(blob){ setRvStatus('🎧 克隆音 '+n+'/'+total+' · 播放中…'); played = await rvPlayBlob(blob); }
       if(!played){
-        // 克隆音不可用 / 被 autoplay 拦截 → 系统嗓音兜底（绝不静默吞掉）
-        if(rvMode!=='sys'){ rvMode='sys'; setRvStatus('🔊 系统嗓音（克隆音不可用，已自动切换）'); }
+        // 克隆音不可用 / 被 autoplay 拦截 / 超时 → 系统嗓音兜底（绝不静默吞掉）
+        if(rvMode!=='sys'){ rvMode='sys'; setRvStatus('🔊 系统嗓音（克隆音：'+(cErr||'不可用')+'，已自动切换）'); }
         try { await sysSpeak(rvSents[i].text); }
         catch(err){ setRvStatus('⚠️ 无法朗读：'+(err&&err.message||err)); break; }
       } else if(rvMode==='clone'){
-        setRvStatus('🎧 克隆音');
+        setRvStatus('🎧 克隆音 '+n+'/'+total);
       }
       if(rvReadStop) break;
     }
