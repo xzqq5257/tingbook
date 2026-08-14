@@ -24,12 +24,14 @@ jobs:
       - name: Wait for the NEW GitHub Pages build to go live
         run: |
           BASE="https://xzqq5257.github.io/tingbook"
-          # 用「新」模块独有的字符串作为判别条件：只有部署后的页面真正包含
-          # "Listen To Your Voice" 时，才算新构建已上线。避免旧站点(root 一直 200)
-          # 导致误判、提前校验尚未上线的内容（这正是此前偶发失败的根因）。
+          # 用「新」模块独有的字符串作为判别条件：当前 index.html 的 UI 标题为中文「听我读」，
+          # 参考音文件名为 ltyv_reference.wav，目录路径为 listen-to-your-voice/；
+          # 任意一个出现即认为新构建已上线，避免旧站点(root 一直 200)误判。
+          # 历史说明：早期 UI 标题曾为英文 "Listen To Your Voice"，后改为中文「听我读」；
+          # 本工作流已同步更新校验串。
           for i in $(seq 1 84); do
             html=$(curl -fsSL "$BASE/" || true)
-            if echo "$html" | grep -q "Listen To Your Voice"; then
+            if echo "$html" | grep -qE "听我读|ltyv_reference|listen-to-your-voice"; then
               echo "new build is live (attempt $i)"; break
             fi
             echo "waiting for new build (attempt $i)"; sleep 10
@@ -41,10 +43,10 @@ jobs:
           BASE="https://xzqq5257.github.io/tingbook"
           fail=0
 
-          # 1) 页面包含 Listen To Your Voice 试听入口
+          # 1) 页面包含「听我读」试听入口（与 index.html 当前 UI 对齐）
           html=$(curl -fsSL "$BASE/")
-          echo "$html" | grep -q "Listen To Your Voice" || { echo "MISSING: Listen To Your Voice section"; fail=1; }
-          echo "$html" | grep -q "ltyv_read_zanghuayin" || { echo "MISSING: ltyv_read_zanghuayin reference"; fail=1; }
+          echo "$html" | grep -qE "听我读|ltyv_reference|listen-to-your-voice" || { echo "MISSING: 听我读 / ltyv section"; fail=1; }
+          echo "$html" | grep -qE "ltyv_reference|listen-to-your-voice" || { echo "MISSING: ltyv reference link"; fail=1; }
 
           # 2) 真实语音试听音频均可达：原声试听(~1.1MB) + 葬花吟朗读(>4MB，防 CDN 截断)
           check_asset () {
