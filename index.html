@@ -1487,6 +1487,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
       type: 'txt',
       ts: 0,
       size: 356,
+      audio: 'audio/moyuer-yuqiu.wav',
       text: '问世间，情是何物，直教生死相许？天南地北双飞客，老翅几回寒暑。欢乐趣，离别苦，就中更有痴儿女。君应有语：渺万里层云，千山暮雪，只影向谁去？\n\n横汾路，寂寞当年箫鼓，荒烟依旧平楚。招魂楚些何嗟及，山鬼暗啼风雨。天也妒，未信与，莺儿燕子俱黄土。千秋万古，为留待骚人，狂歌痛饮，来访雁丘处。'
     }
   ];
@@ -1495,11 +1496,17 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     var pending = [];
     var changed = false;
     BUILTIN_BOOKS.forEach(function(b){
-      if(!idx.some(function(x){ return x.id === b.id; })){
+      var has = idx.some(function(x){ return x.id === b.id; });
+      if(!has){
         idx.unshift({ id:b.id, title:b.title, type:b.type, ts:b.ts, size:b.size });
         changed = true;
-        pending.push(_idb.set('book:'+b.id, b));
       }
+      // 始终把内置书的最新 audio 字段写回 IndexedDB（新增或老用户升级都能拿到预生成音频）
+      pending.push(_idb.get('book:'+b.id).then(function(stored){
+        var obj = stored || b;
+        if((!obj.audio) && b.audio){ obj = Object.assign({}, obj, { audio: b.audio }); }
+        return _idb.set('book:'+b.id, obj);
+      }).catch(function(){ return _idb.set('book:'+b.id, b); }));
     });
     if(changed) saveBookIndex(idx);
     return Promise.all(pending);
@@ -1705,7 +1712,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 
 
   // ---- 全屏文本阅读器（微信读书风，单一阅读体验，听书内嵌）----
-  var rvBookId=null, rvBookTitle='', rvPars=[], rvSents=[], rvSentStart=[], rvPages=[], rvPageOfPara=[], rvIdx=0, rvFs=17, rvTheme='day';
+  var rvBookId=null, rvBookTitle='', rvBookAudio='', rvPars=[], rvSents=[], rvSentStart=[], rvPages=[], rvPageOfPara=[], rvIdx=0, rvFs=17, rvTheme='day';
   var RV_FS_K='tingbook_rv_fs', RV_TH_K='tingbook_rv_theme', RV_PR_K='tingbook_rv_prog_';
   var rvReading=false, rvAudio=null, rvReadStop=false, rvCache={}, rvInflight={};
   var rvMode='clone';
@@ -1784,6 +1791,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     rvBookId=id; rvBookTitle=title; rvCache={}; rvInflight={};
     _idb.get('book:'+id).then(function(book){
       var text=(book&&book.text)||'';
+      rvBookAudio=(book&&book.audio)||'';
       rvParse(text);
       var rv=document.getElementById('reader-view');
       document.getElementById('rv-title').textContent='《'+title+'》';
@@ -1891,9 +1899,31 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     setRvListen(false); setRvStatus('');
     document.querySelectorAll('#rv-page .si.si-on').forEach(function(e){ e.classList.remove('si-on'); });
   }
+  // 直接播放预生成的静态音频（最可靠：不依赖系统 TTS / F5 后端，秒开）
+  function rvPlayUrl(url){
+    return new Promise(function(resolve){
+      if(!url){ resolve(false); return; }
+      var a=new Audio(); a.src=url; a.preload='auto'; rvAudio=a;
+      var done=false;
+      function fin(ok){ if(done) return; done=true; try{ a.pause(); }catch(e){} resolve(ok); }
+      a.onended=function(){ fin(true); };
+      a.onerror=function(){ fin(false); };
+      var p; try{ p=a.play(); }catch(e){ fin(false); return; }
+      if(p&&p.catch){ p.catch(function(){ fin(false); }); }
+    });
+  }
   async function rvReadBook(){
     if(rvReading){ rvStopRead(); return; }
     if(!rvSents.length){ setRvStatus('⚠️ 没有可朗读的正文'); return; }
+    // 内置书带预生成音频 → 直接整段播放（国行机无中文 TTS、F5 后端失效时也能稳定出声）
+    if(rvBookAudio){
+      rvReading=true; rvReadStop=false; setRvListen(true);
+      setRvStatus('🎧 音频朗读 · 播放中…');
+      var ok = await rvPlayUrl(rvBookAudio);
+      if(!ok && !rvReadStop){ setRvStatus('⚠️ 音频播放失败，请检查网络或刷新重试'); }
+      rvStopRead();
+      return;
+    }
     unlockMedia();
     rvReading=true; rvReadStop=false; rvCache={}; rvInflight={};
     rvMode='clone'; setRvListen(true);
@@ -1945,6 +1975,15 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   async function rvReadBookFull(){
     if(rvReading){ rvStopRead(); return; }
     if(!rvSents.length){ setRvStatus('⚠️ 没有可朗读的正文'); return; }
+    // 内置书带预生成音频 → 直接整段播放（与「🔊 听书」一致，走可靠静态音频）
+    if(rvBookAudio){
+      rvReading=true; rvReadStop=false; setRvListen(true);
+      setRvStatus('🎧 音频朗读 · 播放中…');
+      var ok = await rvPlayUrl(rvBookAudio);
+      if(!ok && !rvReadStop){ setRvStatus('⚠️ 音频播放失败，请检查网络或刷新重试'); }
+      rvStopRead();
+      return;
+    }
     unlockMedia();
     rvReading=true; rvReadStop=false; rvCache={}; rvInflight={};
     rvMode='clone'; setRvListen(true);
