@@ -147,9 +147,28 @@ async function synthesize(apiKey, wsId, env, voiceId, text) {
       const txt = await r.text().catch(() => "");
       throw new Error(`synth HTTP ${r.status} - ${txt.slice(0, 200)}`);
     }
-    const buf = await r.arrayBuffer();
-    if (!buf || buf.byteLength < 200) throw new Error(`synth 返回空音频（${buf ? buf.byteLength : 0} 字节）`);
-    return buf;
+    // 注意：SpeechSynthesizer 返回的是 JSON，音频在 output.audio.url（OSS 临时地址）
+    // 或 output.audio.data（base64），并不是直接的二进制流，必须解析后再取音频。
+    const j = await r.json();
+    const audio = j && j.output && j.output.audio;
+    if (!audio) throw new Error("synth 返回没有 output.audio：" + JSON.stringify(j).slice(0, 200));
+    // 1) 优先 base64 data
+    if (audio.data) {
+      const bin = atob(audio.data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      if (bytes.byteLength < 200) throw new Error(`synth 返回空音频（${bytes.byteLength} 字节）`);
+      return bytes.buffer;
+    }
+    // 2) 否则回源拉取 OSS url（http/https 均可）
+    if (audio.url) {
+      const a2 = await fetch(audio.url);
+      if (!a2.ok) throw new Error(`回源拉取音频 HTTP ${a2.status}`);
+      const buf = await a2.arrayBuffer();
+      if (!buf || buf.byteLength < 200) throw new Error(`回源音频为空（${buf ? buf.byteLength : 0} 字节）`);
+      return buf;
+    }
+    throw new Error("synth 返回的 output.audio 既没有 data 也没有 url：" + JSON.stringify(audio).slice(0, 200));
   } catch (e) {
     clearTimeout(to);
     throw e;
