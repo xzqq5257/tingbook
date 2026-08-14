@@ -2045,38 +2045,84 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   }
 
   function rvBuild(){
-    rvPages=[]; rvPageOfPara=new Array(rvPars.length).fill(0);
+    // 以"句子（rvSents）"为最小分页单位：逐句追加测高，溢出即换页。
+    // 这样不管原文是否分段、是否含换行，每页都能填到接近可见高度。
+    rvPages=[]; rvPageOfSent=[]; rvPageOfPara=new Array(rvPars.length).fill(0);
     var page=document.getElementById('rv-page'); if(!page) return;
     var rvStage=document.querySelector('.rv-stage');
     page.style.visibility='hidden';
     page.innerHTML='';
-    // 强制一次 reflow 再读高度，避免首次测量拿到 0
-    void (rvStage?rvStage.offsetHeight:page.offsetHeight);
-    var cap = (page.clientHeight||400) - 4; // 每页允许比可见高度多 4px，容许误差
-    if(!rvPars.length) rvPars=[''];
+    void (rvStage?rvStage.offsetHeight:page.offsetHeight); // 强制 reflow 拿真高度
+    var cap = (page.clientHeight||400) - 6;
+    if(!rvSents.length){ rvSents=[{p:0, text:''}]; }
+    // 为避免单个超长句独占多页空白：先用 measure 容器按 cap 试切该句（按高度上限粗估）
+    function tryAppend(sp){
+      page.appendChild(sp); void page.offsetHeight; return page.scrollHeight;
+    }
     var cur=[];
-    rvPars.forEach(function(para, pi){
-      var p=document.createElement('p'); rvFill(p, pi); page.appendChild(p);
-      // 关键：appendChild 后强制 layout，再读 scrollHeight
-      void page.offsetHeight;
-      if(page.scrollHeight > cap && cur.length > 0){
-        page.removeChild(p); rvPages.push(cur); cur=[pi];
-        var p2=document.createElement('p'); rvFill(p2, pi); page.appendChild(p2);
-        void page.offsetHeight;
-      } else cur.push(pi);
+    rvSents.forEach(function(sent, si){
+      var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=sent.text;
+      var sh=tryAppend(sp);
+      if(sh>cap && cur.length>0){
+        // 当前句放不下且 cur 不空 → 把刚追加的拿掉，开新页
+        page.removeChild(sp);
+        rvPages.push(cur);
+        cur=[si];
+        var sp2=document.createElement('span'); sp2.className='si'; sp2.dataset.si=si; sp2.textContent=sent.text;
+        page.appendChild(sp2); void page.offsetHeight;
+        // 若新页这一句仍超高（超长句），保留它独占一页，不再细切（避免在视觉上跟丢阅读位置）
+      } else if(sh>cap && cur.length===0){
+        // 首句就超高：保留它独占一页
+        cur.push(si);
+      } else {
+        cur.push(si);
+      }
     });
     if(cur.length) rvPages.push(cur);
     if(!rvPages.length) rvPages=[[]];
-    rvPages.forEach(function(arr,pg){ arr.forEach(function(pi){ rvPageOfPara[pi]=pg; }); });
+    // 索引：句→页
+    rvPageOfSent=new Array(rvSents.length);
+    rvPages.forEach(function(arr,pg){
+      arr.forEach(function(si){ rvPageOfSent[si]=pg; });
+    });
+    // 段→页（取该段第一句所在页）
+    rvSents.forEach(function(s,si){
+      if(s && typeof s.p==='number'){
+        var pg=rvPageOfSent[si]||0;
+        if(pg>rvPageOfPara[s.p]) rvPageOfPara[s.p]=pg;
+      }
+    });
     page.style.visibility='';
+    page.innerHTML='';
   }
 
   function rvRender(){
     var page=document.getElementById('rv-page'); if(!page) return;
     page.innerHTML='';
-    (rvPages[rvIdx]||[]).forEach(function(pi){
-      var p=document.createElement('p'); rvFill(p, pi); page.appendChild(p);
-    });
+    var sArr=rvPages[rvIdx]||[];
+    if(sArr.length){
+      // 把当前页内的句子按"段 pi"分组：每个非标题段用 <p> 包裹其句子 span；标题段单独居中 <p class='rv-h'>
+      var grpStart=0;
+      while(grpStart<sArr.length){
+        var pi=rvSents[sArr[grpStart]] ? rvSents[sArr[grpStart]].p : 0;
+        var grpEnd=grpStart+1;
+        while(grpEnd<sArr.length && rvSents[sArr[grpEnd]] && rvSents[sArr[grpEnd]].p===pi) grpEnd++;
+        var para=rvPars[pi]||'';
+        if(rvIsHeading(para)){
+          var hp=document.createElement('p'); hp.className='rv-h'; hp.textContent=para.trim();
+          page.appendChild(hp);
+        }
+        var lp=document.createElement('p');
+        for(var k=grpStart;k<grpEnd;k++){
+          var si=sArr[k]; var sent=rvSents[si]||{p:0,text:''};
+          var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=sent.text;
+          lp.appendChild(sp);
+        }
+        // 即使该段是 heading 也允许紧跟其正文；如果 grpEnd==grpStart+0 不可能（while 退出条件保证至少一个）
+        if(lp.childNodes.length) page.appendChild(lp);
+        grpStart=grpEnd;
+      }
+    }
     var bar=document.getElementById('rv-bar'); if(bar) bar.style.width=((rvIdx+1)/Math.max(1,rvPages.length)*100)+'%';
     var info=document.getElementById('rv-pinfo'); if(info) info.textContent=(rvIdx+1)+' / '+rvPages.length;
     try{ localStorage.setItem(RV_PR_K+rvBookId, JSON.stringify({idx:rvIdx})); }catch(e){}
@@ -2223,7 +2269,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     rvReading=true; rvReadStop=false; rvCache={}; rvInflight={};
     rvMode='clone'; setRvListen(true);
     var arr=rvPages[rvIdx]||[];
-    var start = arr.length ? (rvSentStart[arr[0]]||0) : 0;
+    var start = arr.length ? arr[0] : 0;
     var total = rvSents.length - start;
     for(var i=start; i<rvSents.length; i++){
       if(rvReadStop) break;
