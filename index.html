@@ -255,15 +255,9 @@
 .rv-progress{ height:2px; background:rgba(128,128,128,.25); }
 .rv-progress i{ display:block; height:100%; width:0; background:var(--accent); transition:width .12s; }
 .reader-view[data-theme="night"] .rv-progress i{ background:var(--nc); }
-.rv-stage{ flex:1; overflow:hidden; padding:10px 20px; }
-.rv-page{ height:100%; overflow:auto; line-height:1.95; text-align:left; font-size:19px; letter-spacing:.02em; max-width:680px; margin:0 auto; padding:8px 4px 20px; font-family:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",serif; }
-.rv-page p{ margin:0 0 .6em; text-indent:2em; }
-.rv-page p.rv-verse{ text-indent:0; margin:0 0 .35em; text-align:center; }
-.rv-page p.rv-h{ text-indent:0; text-align:center; font-weight:700; margin:1em 0 .6em; font-size:1.1em; letter-spacing:.12em; color:var(--accent); }
-.rv-page .si{ border-radius:5px; transition:background .15s, color .15s; }
-.rv-page .si.si-on{ background:rgba(184,144,47,.20); color:var(--accent); box-shadow:0 0 0 1px rgba(184,144,47,.25); padding:0 2px; }
-.reader-view[data-theme="sepia"] .rv-page .si.si-on{ background:rgba(120,90,30,.18); color:#5a4326; }
-.reader-view[data-theme="night"] .rv-page .si.si-on{ background:rgba(236,65,65,.22); color:#ffd9d9; box-shadow:0 0 0 1px rgba(236,65,65,.30); }
+.rv-stage{ flex:1; overflow:hidden; padding:0; position:relative; }
+.rv-canvas{ width:100%; height:100%; display:block; }
+.rv-page{ line-height:1.95; letter-spacing:.02em; font-family:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",serif; }
 .rv-zones{ display:flex; height:52px; border-top:1px solid rgba(128,128,128,.18); }
 .rv-z{ flex:1; background:none; border:none; color:inherit; opacity:.45; font-size:20px; cursor:pointer; }
 .rv-z:active{ opacity:.9; }
@@ -288,6 +282,9 @@
 .rv-theme{ border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
 .rv-theme.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
 .reader-view[data-theme="night"] .rv-theme.active{ background:var(--nc); border-color:var(--nc); }
+.rv-font{ border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
+.rv-font.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+.reader-view[data-theme="night"] .rv-font.active{ background:var(--nc); border-color:var(--nc); }
 </style>
 <style id="tab-css">
 /* 三栏 Tab 框架 */
@@ -564,7 +561,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     <button id="rv-aa" class="rv-ico">Aa</button>
   </div>
   <div class="rv-progress"><i id="rv-bar"></i></div>
-  <div class="rv-stage"><article class="rv-page" id="rv-page"></article></div>
+  <div class="rv-stage"><canvas id="rv-canvas" class="rv-canvas"></canvas></div>
   <div class="rv-zones">
     <button class="rv-z" id="rv-prev" aria-label="上一页"></button>
     <button class="rv-z" id="rv-menu" aria-label="菜单"></button>
@@ -578,6 +575,9 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   </div>
   <div class="rv-panel" id="rv-panel">
     <div class="rv-row"><span>字号</span><button id="rv-fd" class="rv-btn">A-</button><span id="rv-fs">19</span><button id="rv-fu" class="rv-btn">A+</button></div>
+    <div class="rv-row"><span>行距</span><button id="rv-lhd" class="rv-btn">－</button><span id="rv-lh">1.9</span><button id="rv-lhu" class="rv-btn">＋</button></div>
+    <div class="rv-row"><span>边距</span><button id="rv-md" class="rv-btn">－</button><span id="rv-m">20</span><button id="rv-mu" class="rv-btn">＋</button></div>
+    <div class="rv-row"><span>字体</span><button class="rv-font" data-f="serif">宋体</button><button class="rv-font" data-f="sans">黑体</button></div>
     <div class="rv-row"><span>主题</span><button class="rv-theme" data-t="day">☀ 白天</button><button class="rv-theme" data-t="sepia">🌿 护眼</button><button class="rv-theme" data-t="night">🌙 夜间</button></div>
     <div class="rv-toc" id="rv-toc"><div class="toc-h">目录</div><div id="rv-toc-list" class="toc-list"></div></div>
   </div>
@@ -2003,6 +2003,15 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   var rvIsPoetry=false;
   var RV_POETRY={ 'bj-白头吟':1,'bj-涉江':1,'bj-沁园春雪':1,'bj-长恨歌':1,'bj-琵琶行':1,'bj-蜀道难':1,'bj-木兰诗':1,'bj-春江花月夜':1,'bj-念奴娇赤壁怀古':1,'bj-水调歌头':1,'bj-声声慢':1,'bj-将进酒':1,'bj-侠客行':1,'bj-葬花吟':1,'bj-红楼梦引子':1,'bj-沁园春长沙':1,'mo-yu-er':1,'bj-错误_郑愁予':1,'bj-离骚':1 };
   var RV_FS_K='tingbook_rv_fs', RV_TH_K='tingbook_rv_theme', RV_PR_K='tingbook_rv_prog_';
+  var RV_LH_K='tingbook_rv_lh', RV_MX_K='tingbook_rv_mx', RV_MY_K='tingbook_rv_my', RV_FONT_K='tingbook_rv_font';
+  // Canvas 排版引擎状态
+  var rvLH=1.9, rvMarginX=20, rvMarginY=22, rvFont='serif';   // 行距 / 左右边距 / 上下边距 / 字体(serif|sans)
+  var hiSent=-1;                       // 当前高亮句索引（听书逐句推进）
+  var rvLines=[];                      // 排版后的所有行：{text,pi,type,centered,indent,isFirst,lineH,gStart,gEnd}
+  var rvParaCharStart=[];              // 段 pi 段内字符起始（行/句坐标统一用段内偏移）
+  var rvSentParaOff=[];                // 句 i 的段内字符偏移 [a,b)
+  var rvSentByPara=[];                 // 段 pi -> 句索引数组（命中查询）
+  var rvCtx=null;                      // Canvas 2D 上下文（供 measureText 精确测量字宽）
   var rvReading=false, rvAudio=null, rvReadStop=false, rvCache={}, rvInflight={};
   var rvMode='clone';
   function setRvStatus(t){ var el=document.getElementById('rv-status'); if(el) el.textContent = t||''; }
@@ -2010,19 +2019,41 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   function rvApply(){
     var fs=parseInt(localStorage.getItem(RV_FS_K)||'17',10); if(fs) rvFs=fs;
     var th=localStorage.getItem(RV_TH_K); if(th) rvTheme=th;
-    var page=document.getElementById('rv-page'); if(page) page.style.fontSize=rvFs+'px';
+    var lh=parseFloat(localStorage.getItem(RV_LH_K)); if(lh>0) rvLH=lh;
+    var mx=parseInt(localStorage.getItem(RV_MX_K)||'20',10); if(mx>=0) rvMarginX=mx;
+    var my=parseInt(localStorage.getItem(RV_MY_K)||'22',10); if(my>=0) rvMarginY=my;
+    var ft=localStorage.getItem(RV_FONT_K); if(ft) rvFont=ft;
     var fsEl=document.getElementById('rv-fs'); if(fsEl) fsEl.textContent=rvFs;
+    var lhEl=document.getElementById('rv-lh'); if(lhEl) lhEl.textContent=rvLH.toFixed(1);
+    var mEl=document.getElementById('rv-m'); if(mEl) mEl.textContent=rvMarginX;
     var rv=document.getElementById('reader-view'); if(rv) rv.dataset.theme=rvTheme;
     Array.prototype.forEach.call(document.querySelectorAll('.rv-theme'), function(b){ b.classList.toggle('active', b.dataset.t===rvTheme); });
+    Array.prototype.forEach.call(document.querySelectorAll('.rv-font'), function(b){ b.classList.toggle('active', b.dataset.f===rvFont); });
   }
 
   // 解析正文：按段落排版，按句朗读（句=高亮单位）
   function rvParse(text){
     rvPars = (text||'').split(/\n+/).map(function(x){ return x.replace(/\s+/g,' ').trim(); }).filter(function(x){ return x; });
-    rvSents=[]; rvSentStart=[]; var g=0;
+    rvSents=[]; rvSentStart=[]; rvParaCharStart=[]; rvSentParaOff=[]; rvSentByPara=[];
+    var SEP='。！？；…\n';
     rvPars.forEach(function(para, pi){
-      rvSentStart[pi]=g;
-      splitSentences(para).forEach(function(s){ if(s && s.trim()){ rvSents.push({p:pi, text:s.trim()}); g++; } });
+      rvParaCharStart[pi]=0;
+      rvSentByPara[pi]=[];
+      var start=0, i=0;
+      function flush(end){
+        var st=para.slice(start,end).trim();
+        if(st.length){
+          var si=rvSents.length;
+          rvSents.push({p:pi, text:st});
+          rvSentStart.push(si);
+          rvSentParaOff.push({a:start, b:end}); // 段内真实字符范围（与 prose 行 gStart/gEnd 同坐标系）
+          rvSentByPara[pi].push(si);
+        }
+      }
+      for(i=0;i<para.length;i++){
+        if(SEP.indexOf(para[i])>=0){ flush(i+1); start=i+1; }
+      }
+      flush(para.length);
     });
     if(!rvSents.length){ rvPars=['']; }
   }
@@ -2045,101 +2076,185 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   }
 
   // 分页：以"句"为最小单位，但用与 rvRender 相同的 <p> 结构测高，避免测量与渲染不一致
-  function rvBuild(){
-    rvPages=[]; rvPageOfSent=[]; rvPageOfPara=new Array(rvPars.length).fill(0);
-    var page=document.getElementById('rv-page'); if(!page) return;
-    page.style.visibility='hidden';
-    page.innerHTML='';
-    void page.offsetHeight;
-    var cap=(page.clientHeight||400)-8;
-    if(!rvSents.length){ rvSents=[{p:0,text:''}]; }
-    var cur=[];
+  // ---------- Canvas 排版引擎 ----------
+  // 用 Canvas measureText 逐字精确测量字宽，按当前字号/字体/行距/页边距/屏幕高度：
+  //  ① 逐字排成行（精确计算每行能放多少字）②处理标点避头避尾 ③按屏高把整章切成内容完整的页
+  function rvCanvasFontStr(bold){
+    var fam = (rvFont==='sans')
+      ? '-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Heiti SC",sans-serif'
+      : '"Songti SC","SimSun","Noto Serif SC","Source Han Serif SC",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",serif';
+    return (bold?'700 ':'400 ')+rvFs+'px '+fam;
+  }
+  function rvThemeColors(){
+    if(rvTheme==='sepia') return {bg:'#e9dcc0', fg:'#4a3f2a', accent:'#5a4326', hi:'rgba(90,67,38,.16)'};
+    if(rvTheme==='night') return {bg:'#14151b', fg:'#cfcfd8', accent:'#ec4141', hi:'rgba(236,65,65,.20)'};
+    return {bg:'#f5f0e6', fg:'#33302a', accent:'#b8902f', hi:'rgba(184,144,47,.18)'};
+  }
+  // 标点禁则：行首不应出现的"闭/点号"；行尾不应出现的"开/句中点号"
+  var RV_LS = '，。！？；：、…—”’）】〉》」』.,!?;:\'")]}>';
+  var RV_LE = '，、；：“‘（【〈《「『,.!?;:\'"([{<';
+  function rvLineStartForbidden(ch){ return RV_LS.indexOf(ch)>=0; }
+  function rvLineEndForbidden(ch){ return RV_LE.indexOf(ch)>=0; }
 
-    function addSent(si){
-      var sent=rvSents[si]||{p:0,text:''};
-      var pi=sent.p, para=rvPars[pi]||'';
-      var lastP=page.lastElementChild, lp;
-      if(rvIsHeading(para)){
-        if(lastP && lastP.className==='rv-h' && lastP.dataset.pi==String(pi)){ lp=lastP; }
-        else{ lp=document.createElement('p'); lp.className='rv-h'; lp.dataset.pi=String(pi); page.appendChild(lp); }
-      } else if(rvIsVerse(para)){
-        lp=document.createElement('p'); lp.className='rv-verse'; page.appendChild(lp);
-      } else {
-        if(lastP && lastP.dataset.pi==String(pi) && lastP.className!=='rv-verse' && lastP.className!=='rv-h'){ lp=lastP; }
-        else{ lp=document.createElement('p'); lp.dataset.pi=String(pi); page.appendChild(lp); }
-      }
-      var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=sent.text;
-      lp.appendChild(sp);
-      void page.offsetHeight;
-      return page.scrollHeight;
-    }
-
-    rvSents.forEach(function(sent, si){
-      var sh=addSent(si);
-      if(sh>cap && cur.length>0){
-        rvPages.push(cur.slice());
-        cur=[];
-        page.innerHTML='';
-        void page.offsetHeight;
-        addSent(si);
-      }
-      cur.push(si);
-    });
-    if(cur.length) rvPages.push(cur);
-    if(!rvPages.length) rvPages=[[]];
-
-    rvPageOfSent=new Array(rvSents.length);
-    rvPages.forEach(function(arr,pg){ arr.forEach(function(si){ rvPageOfSent[si]=pg; }); });
-    rvSents.forEach(function(s,si){
-      if(s && typeof s.p==='number'){
-        var pg=rvPageOfSent[si]||0;
-        if(pg>rvPageOfPara[s.p]) rvPageOfPara[s.p]=pg;
-      }
-    });
-    page.style.visibility='';
-    page.innerHTML='';
+  function rvMeasure(){
+    var cv=document.getElementById('rv-canvas'); if(!cv) return null;
+    var dpr=window.devicePixelRatio||1;
+    var r=cv.getBoundingClientRect();
+    var W=r.width||cv.clientWidth||360, H=r.height||cv.clientHeight||600;
+    if(cv.width!==Math.round(W*dpr) || cv.height!==Math.round(H*dpr)){ cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); }
+    var ctx=cv.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.font=rvCanvasFontStr(false);
+    rvCtx=ctx;
+    return {ctx:ctx, W:W, H:H};
   }
 
-  function rvRender(){
-    var page=document.getElementById('rv-page'); if(!page) return;
-    page.innerHTML='';
-    var sArr=rvPages[rvIdx]||[];
-    if(sArr.length){
-      var grpStart=0;
-      while(grpStart<sArr.length){
-        var pi=rvSents[sArr[grpStart]] ? rvSents[sArr[grpStart]].p : 0;
-        var grpEnd=grpStart+1;
-        while(grpEnd<sArr.length && rvSents[sArr[grpEnd]] && rvSents[sArr[grpEnd]].p===pi) grpEnd++;
-        var para=rvPars[pi]||'';
-        if(rvIsHeading(para)){
-          var lp=document.createElement('p'); lp.className='rv-h';
-          for(var k=grpStart;k<grpEnd;k++){
-            var si=sArr[k]; var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=(rvSents[si]||{text:''}).text;
-            lp.appendChild(sp);
+  // 排版：把每段排成精确行（逐字测量 + 避头避尾）
+  function rvLayout(m){
+    var ctx=m.ctx, W=m.W, H=m.H;
+    var contentW = W - rvMarginX*2;
+    var LH = Math.max(1.2, rvLH);
+    var lineH = Math.round(rvFs*LH);
+    var headingLH = Math.round(rvFs*1.12*1.5);
+    rvLines=[];
+    rvPars.forEach(function(para, pi){
+      if(!para) return;
+      var type = rvIsHeading(para) ? 'heading' : (rvIsVerse(para) ? 'verse' : 'prose');
+      if(type==='heading'){
+        rvLines.push({text:para, pi:pi, type:'heading', centered:true, indent:0, isFirst:true,
+          lineH:headingLH, gStart:rvParaCharStart[pi], gEnd:rvParaCharStart[pi]+Math.max(1,para.length)});
+      } else if(type==='verse'){
+        splitSentences(para).forEach(function(s){
+          if(s && s.trim()){
+            var t=s.trim();
+            rvLines.push({text:t, pi:pi, type:'verse', centered:true, indent:0, isFirst:false,
+              lineH:lineH, gStart:rvParaCharStart[pi], gEnd:rvParaCharStart[pi]+t.length});
           }
-          if(lp.childNodes.length) page.appendChild(lp);
-        } else if(rvIsVerse(para)){
-          for(var k=grpStart;k<grpEnd;k++){
-            var si=sArr[k]; var lp=document.createElement('p'); lp.className='rv-verse';
-            var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=(rvSents[si]||{text:''}).text;
-            lp.appendChild(sp);
-            page.appendChild(lp);
+        });
+      } else {
+        var indent=rvFs*2; // 首行缩进 2em
+        var i=0;
+        while(i<para.length){
+          var firstLine = (i===0);
+          var maxW = contentW - (firstLine?indent:0);
+          var j=i, w=0;
+          while(j<para.length){
+            var cw=ctx.measureText(para[j]).width;
+            if(w+cw>maxW && j>i) break;
+            w+=cw; j++;
           }
-        } else {
-          var lp=document.createElement('p');
-          for(var k=grpStart;k<grpEnd;k++){
-            var si=sArr[k]; var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=(rvSents[si]||{text:''}).text;
-            lp.appendChild(sp);
+          if(j===i) j=i+1; // 单字超宽也放（防死循环）
+          var breakAt=j;
+          // 避尾：当前行末(para[j-1])是开/句中点号 → 移到下一行（再退一格，避免下一行首成标点）
+          if(j<para.length && rvLineEndForbidden(para[j-1]) && (j-1)>i){
+            breakAt = ((j-2)>i)? (j-2) : (j-1);
           }
-          if(lp.childNodes.length) page.appendChild(lp);
+          // 避头：下一行首(para[j])是闭/点号 → 把前字一起留到下一行
+          else if(j<para.length && rvLineStartForbidden(para[j]) && (j-1)>i){
+            breakAt = j-1;
+          }
+          var textLine = para.slice(i, breakAt);
+          if(textLine.length===0){ textLine=para.slice(i,j); breakAt=j; }
+          rvLines.push({text:textLine, pi:pi, type:'prose', centered:false,
+            indent:(firstLine?indent:0), isFirst:firstLine, lineH:lineH,
+            gStart:rvParaCharStart[pi]+i, gEnd:rvParaCharStart[pi]+breakAt});
+          i=breakAt;
         }
-        grpStart=grpEnd;
       }
+    });
+  }
+
+  // 分页：根据屏幕可用高度，把行动态切成内容完整的页
+  function rvPaginate(){
+    rvPages=[]; rvPageOfSent=[]; rvPageOfPara=new Array(rvPars.length).fill(0);
+    if(!rvLines.length){ rvPages=[[]]; return; }
+    var cv=document.getElementById('rv-canvas');
+    var r=cv?cv.getBoundingClientRect():{height:600};
+    var H=(r.height||600);
+    var contentH = H - rvMarginY*2;
+    var gap = Math.round(rvFs*0.6);
+    var pages=[], cur=[], usedH=0;
+    rvLines.forEach(function(ln, k){
+      if(ln.type==='heading' && cur.length>0){ pages.push(cur); cur=[]; usedH=0; } // 标题总在页首
+      var g = (ln.isFirst && cur.length>0) ? gap : 0;
+      if(usedH+g+ln.lineH>contentH && cur.length>0){
+        pages.push(cur); cur=[]; usedH=0; g=0;
+      }
+      if(g) usedH+=g;
+      cur.push(k); usedH+=ln.lineH;
+    });
+    if(cur.length) pages.push(cur);
+    rvPages=pages.length?pages:[[]];
+    // 句→页 / 段→页：行与句范围有交集即认为该句落在当前页
+    rvPageOfSent=new Array(rvSents.length);
+    rvPages.forEach(function(arr,pg){
+      arr.forEach(function(k){
+        var ln=rvLines[k];
+        (rvSentByPara[ln.pi]||[]).forEach(function(si){
+          var o=rvSentParaOff[si];
+          if(o.a < ln.gEnd && ln.gStart < o.b){ if(rvPageOfSent[si]===undefined) rvPageOfSent[si]=pg; }
+        });
+      });
+    });
+    rvSents.forEach(function(s,si){ if(s && typeof s.p==='number'){ var pg=rvPageOfSent[si]||0; if(pg>rvPageOfPara[s.p]) rvPageOfPara[s.p]=pg; } });
+  }
+
+  function rvBuild(){
+    var m=rvMeasure(); if(!m) return;
+    rvLayout(m);
+    rvPaginate();
+  }
+
+  function rvRenderCanvas(){
+    var cv=document.getElementById('rv-canvas'); if(!cv||!rvCtx) return;
+    var dpr=window.devicePixelRatio||1;
+    var r=cv.getBoundingClientRect();
+    var W=r.width||cv.clientWidth||360, H=r.height||cv.clientHeight||600;
+    if(cv.width!==Math.round(W*dpr) || cv.height!==Math.round(H*dpr)){ rvBuild(); return; } // 尺寸变化 → 重排
+    var ctx=rvCtx;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.font=rvCanvasFontStr(false);
+    var col=rvThemeColors();
+    ctx.fillStyle=col.bg; ctx.fillRect(0,0,W,H);
+    ctx.textBaseline='alphabetic';
+    var x0=rvMarginX, y=rvMarginY;
+    var gap=Math.round(rvFs*0.6);
+    var arr=rvPages[rvIdx]||[];
+    for(var n=0;n<arr.length;n++){
+      var ln=rvLines[arr[n]]; if(!ln) continue;
+      if(ln.isFirst && n>0) y += gap;
+      var baseline = y + ln.lineH*0.78;
+      var x = x0 + ln.indent;
+      var bold = (ln.type==='heading');
+      if(bold) ctx.font=rvCanvasFontStr(true);
+      if(ln.centered){
+        var tw=ctx.measureText(ln.text).width;
+        x = x0 + Math.max(0,(W-rvMarginX*2 - tw)/2);
+      }
+      var chars=Array.from(ln.text);
+      var cx=x;
+      for(var c=0;c<chars.length;c++){
+        var ch=chars[c];
+        var gpos = ln.gStart + c; // 段内全局字符坐标
+        var si=-1, lst=rvSentByPara[ln.pi]||[], o;
+        for(var q=0;q<lst.length;q++){ o=rvSentParaOff[lst[q]]; if(o.a<=gpos && gpos<o.b){ si=lst[q]; break; } }
+        var isHi = (si===hiSent && si>=0);
+        if(isHi){
+          var cw=ctx.measureText(ch).width;
+          ctx.fillStyle=col.hi; ctx.fillRect(cx, baseline-ln.lineH*0.74, cw+1, ln.lineH*0.74);
+        }
+        ctx.fillStyle = isHi ? col.fg : (bold? col.accent : col.fg);
+        ctx.fillText(ch, cx, baseline);
+        cx += ctx.measureText(ch).width;
+      }
+      if(bold) ctx.font=rvCanvasFontStr(false);
+      y += ln.lineH;
     }
     var bar=document.getElementById('rv-bar'); if(bar) bar.style.width=((rvIdx+1)/Math.max(1,rvPages.length)*100)+'%';
     var info=document.getElementById('rv-pinfo'); if(info) info.textContent=(rvIdx+1)+' / '+rvPages.length;
     try{ localStorage.setItem(RV_PR_K+rvBookId, JSON.stringify({idx:rvIdx})); }catch(e){}
   }
+  function rvRender(){ rvRenderCanvas(); }
 
   function openReader(id, title, autoListen){
     rvBookId=id; rvBookTitle=title; rvCache={}; rvInflight={};
@@ -2151,13 +2266,18 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
       var rv=document.getElementById('reader-view');
       document.getElementById('rv-title').textContent='《'+title+'》';
       rv.classList.add('show'); rvApply();
-      requestAnimationFrame(function(){
+      function doBuild(){
         rvBuild();
         var prog=null; try{ prog=JSON.parse(localStorage.getItem(RV_PR_K+id)||'null'); }catch(e){}
         rvIdx=(prog&&typeof prog.idx==='number')?Math.min(prog.idx,Math.max(0,rvPages.length-1)):0;
         rvRender();
         rvBuildToc();
         if(autoListen) rvReadBook();
+      }
+      requestAnimationFrame(function(){
+        doBuild();
+        // 若系统字体/外部字体加载完再重排一次，保证 measureText 精确
+        if(document.fonts && document.fonts.ready){ document.fonts.ready.then(function(){ rvBuild(); rvRender(); }); }
       });
     });
   }
@@ -2185,14 +2305,14 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 
   // ---- 听书：在当前分页内逐句高亮朗读，自动翻页 ----
   function rvHilite(i){
-    document.querySelectorAll('#rv-page .si.si-on').forEach(function(e){ e.classList.remove('si-on'); });
-    var sp=document.querySelector('#rv-page .si[data-si="'+i+'"]');
-    if(sp){ sp.classList.add('si-on'); try{ sp.scrollIntoView({block:'center'}); }catch(e){} }
+    hiSent=i;
+    rvRenderCanvas();
   }
   function rvGoSentence(i){
     var pi=rvSents[i] ? rvSents[i].p : 0;
     if(rvPageOfPara[pi]!==rvIdx){ rvIdx=rvPageOfPara[pi]; rvRender(); }
-    rvHilite(i);
+    hiSent=i;
+    rvRenderCanvas();
   }
   function rvPlayBlob(blob){
     return new Promise(function(resolve){
@@ -2252,7 +2372,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     if(window.__tingSrc){ try{ window.__tingSrc.stop(); }catch(e){} window.__tingSrc=null; }
     if('speechSynthesis' in window) try{ speechSynthesis.cancel(); }catch(e){}
     setRvListen(false); setRvStatus('');
-    document.querySelectorAll('#rv-page .si.si-on').forEach(function(e){ e.classList.remove('si-on'); });
+    if(hiSent!==-1){ hiSent=-1; if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas(); }
   }
   // 直接播放预生成的静态音频（最可靠：不依赖系统 TTS / F5 后端，秒开）
   function rvPlayUrl(url){
@@ -2381,11 +2501,23 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     }); }
     byId('rv-next').onclick=function(){ if(rvIdx<rvPages.length-1){ rvIdx++; rvRender(); } };
     byId('rv-prev').onclick=function(){ if(rvIdx>0){ rvIdx--; rvRender(); } };
-    byId('rv-fu').onclick=function(){ rvFs=Math.min(30,rvFs+1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
-    byId('rv-fd').onclick=function(){ rvFs=Math.max(14,rvFs-1); byId('rv-fs').textContent=rvFs; byId('rv-page').style.fontSize=rvFs+'px'; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
-    Array.prototype.forEach.call(document.querySelectorAll('.rv-theme'), function(b){ b.onclick=function(){ rvTheme=b.dataset.t; byId('reader-view').dataset.theme=rvTheme; try{localStorage.setItem(RV_TH_K,rvTheme);}catch(e){} rvApply(); }; });
+    byId('rv-fu').onclick=function(){ rvFs=Math.min(32,rvFs+1); byId('rv-fs').textContent=rvFs; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
+    byId('rv-fd').onclick=function(){ rvFs=Math.max(12,rvFs-1); byId('rv-fs').textContent=rvFs; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
+    byId('rv-lhu').onclick=function(){ rvLH=Math.min(2.8, Math.round((rvLH+0.1)*10)/10); byId('rv-lh').textContent=rvLH.toFixed(1); try{localStorage.setItem(RV_LH_K,rvLH);}catch(e){} rvBuild(); rvRender(); };
+    byId('rv-lhd').onclick=function(){ rvLH=Math.max(1.3, Math.round((rvLH-0.1)*10)/10); byId('rv-lh').textContent=rvLH.toFixed(1); try{localStorage.setItem(RV_LH_K,rvLH);}catch(e){} rvBuild(); rvRender(); };
+    byId('rv-mu').onclick=function(){ rvMarginX=Math.min(60,rvMarginX+4); rvMarginY=Math.min(60,rvMarginY+4); byId('rv-m').textContent=rvMarginX; try{localStorage.setItem(RV_MX_K,rvMarginX);localStorage.setItem(RV_MY_K,rvMarginY);}catch(e){} rvBuild(); rvRender(); };
+    byId('rv-md').onclick=function(){ rvMarginX=Math.max(4,rvMarginX-4); rvMarginY=Math.max(4,rvMarginY-4); byId('rv-m').textContent=rvMarginX; try{localStorage.setItem(RV_MX_K,rvMarginX);localStorage.setItem(RV_MY_K,rvMarginY);}catch(e){} rvBuild(); rvRender(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.rv-font'), function(b){ b.onclick=function(){ rvFont=b.dataset.f; try{localStorage.setItem(RV_FONT_K,rvFont);}catch(e){} rvApply(); rvBuild(); rvRender(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.rv-theme'), function(b){ b.onclick=function(){ rvTheme=b.dataset.t; byId('reader-view').dataset.theme=rvTheme; try{localStorage.setItem(RV_TH_K,rvTheme);}catch(e){} rvApply(); if(document.getElementById('reader-view').classList.contains('show')) rvRender(); }; });
     byId('rv-listen').onclick=function(){ rvReadBook(); };
     byId('rv-listen-full').onclick=function(){ rvReadBookFull(); };
+    // 屏幕旋转/尺寸变化时按新尺寸重排（仅阅读器打开时）
+    var rzT=null;
+    window.addEventListener('resize', function(){
+      if(!document.getElementById('reader-view').classList.contains('show')) return;
+      clearTimeout(rzT);
+      rzT=setTimeout(function(){ hiSent=-1; rvBuild(); rvRender(); }, 150);
+    });
   }
   initReader();
   // 首次进入阅读栏时：先注入预置内置书，再渲染书架
