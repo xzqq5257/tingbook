@@ -255,11 +255,11 @@
 .rv-progress{ height:2px; background:rgba(128,128,128,.25); }
 .rv-progress i{ display:block; height:100%; width:0; background:var(--accent); transition:width .12s; }
 .reader-view[data-theme="night"] .rv-progress i{ background:var(--nc); }
-.rv-stage{ flex:1; overflow:hidden; padding:8px 18px; }
-.rv-page{ height:100%; overflow:auto; line-height:1.92; text-align:left; font-size:19px; letter-spacing:.02em; max-width:680px; margin:0 auto; padding:6px 2px; font-family:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",serif; }
-.rv-page p{ margin:0 0 .55em; text-indent:2em; }
-.rv-page p.rv-verse{ text-indent:0; margin:0 0 .2em; }
-.rv-page p.rv-h{ text-indent:0; text-align:center; font-weight:700; margin:.9em 0 .5em; font-size:1.08em; letter-spacing:.12em; color:var(--accent); }
+.rv-stage{ flex:1; overflow:hidden; padding:10px 20px; }
+.rv-page{ height:100%; overflow:auto; line-height:1.95; text-align:left; font-size:19px; letter-spacing:.02em; max-width:680px; margin:0 auto; padding:8px 4px 20px; font-family:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",serif; }
+.rv-page p{ margin:0 0 .6em; text-indent:2em; }
+.rv-page p.rv-verse{ text-indent:0; margin:0 0 .35em; text-align:center; }
+.rv-page p.rv-h{ text-indent:0; text-align:center; font-weight:700; margin:1em 0 .6em; font-size:1.1em; letter-spacing:.12em; color:var(--accent); }
 .rv-page .si{ border-radius:5px; transition:background .15s, color .15s; }
 .rv-page .si.si-on{ background:rgba(184,144,47,.20); color:var(--accent); box-shadow:0 0 0 1px rgba(184,144,47,.25); padding:0 2px; }
 .reader-view[data-theme="sepia"] .rv-page .si.si-on{ background:rgba(120,90,30,.18); color:#5a4326; }
@@ -2000,6 +2000,8 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 
   // ---- 全屏文本阅读器（微信读书风，单一阅读体验，听书内嵌）----
   var rvBookId=null, rvBookTitle='', rvBookAudio='', rvPars=[], rvSents=[], rvSentStart=[], rvPages=[], rvPageOfPara=[], rvIdx=0, rvFs=17, rvTheme='day';
+  var rvIsPoetry=false;
+  var RV_POETRY={ 'bj-白头吟':1,'bj-涉江':1,'bj-沁园春雪':1,'bj-长恨歌':1,'bj-琵琶行':1,'bj-蜀道难':1,'bj-木兰诗':1,'bj-春江花月夜':1,'bj-念奴娇赤壁怀古':1,'bj-水调歌头':1,'bj-声声慢':1,'bj-将进酒':1,'bj-侠客行':1,'bj-葬花吟':1,'bj-红楼梦引子':1,'bj-沁园春长沙':1,'mo-yu-er':1,'bj-错误_郑愁予':1,'bj-离骚':1 };
   var RV_FS_K='tingbook_rv_fs', RV_TH_K='tingbook_rv_theme', RV_PR_K='tingbook_rv_prog_';
   var rvReading=false, rvAudio=null, rvReadStop=false, rvCache={}, rvInflight={};
   var rvMode='clone';
@@ -2025,7 +2027,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     if(!rvSents.length){ rvPars=['']; }
   }
 
-  // 章节标题识别：短行 + 无句中/句末标点 + 匹配常见标题词 → 居中加粗（微信读书风）；普通短句（含标点）仍按正文
+  // 章节标题识别：短行 + 无句中/句末标点 + 匹配常见标题词 → 居中加粗
   function rvIsHeading(para){
     var t=(para||'').trim();
     if(!t || t.length>20) return false;
@@ -2033,60 +2035,61 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     if(/^(第[一二三四五六七八九十百千0-9]+[章回节卷部篇]|序|序言|前言|后记|尾声|楔子|附录|目录|引子|番外)/.test(t)) return true;
     return false;
   }
-  // 把某段落渲染成 <p>，内含逐句 <span class="si">
-  function rvFill(pEl, pi){
-    var para=rvPars[pi]||'';
-    if(rvIsHeading(para)){ pEl.className='rv-h'; }
-    var start=rvSentStart[pi]||0;
-    splitSentences(para).forEach(function(s, k){
-      if(!s || !s.trim()) return;
-      var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=(start+k); sp.textContent=s;
-      pEl.appendChild(sp);
-    });
+
+  // 诗词行识别：诗词类整本书标记为诗；非诗词类短行(≤30字)也算诗行
+  function rvIsVerse(para){
+    if(rvIsPoetry) return true;
+    var t=(para||'').trim();
+    if(!t || rvIsHeading(t)) return false;
+    return t.length<=30;
   }
 
+  // 分页：以"句"为最小单位，但用与 rvRender 相同的 <p> 结构测高，避免测量与渲染不一致
   function rvBuild(){
-    // 以"句子（rvSents）"为最小分页单位：逐句追加测高，溢出即换页。
-    // 这样不管原文是否分段、是否含换行，每页都能填到接近可见高度。
     rvPages=[]; rvPageOfSent=[]; rvPageOfPara=new Array(rvPars.length).fill(0);
     var page=document.getElementById('rv-page'); if(!page) return;
-    var rvStage=document.querySelector('.rv-stage');
     page.style.visibility='hidden';
     page.innerHTML='';
-    void (rvStage?rvStage.offsetHeight:page.offsetHeight); // 强制 reflow 拿真高度
-    var cap = (page.clientHeight||400) - 6;
-    if(!rvSents.length){ rvSents=[{p:0, text:''}]; }
-    // 为避免单个超长句独占多页空白：先用 measure 容器按 cap 试切该句（按高度上限粗估）
-    function tryAppend(sp){
-      page.appendChild(sp); void page.offsetHeight; return page.scrollHeight;
-    }
+    void page.offsetHeight;
+    var cap=(page.clientHeight||400)-8;
+    if(!rvSents.length){ rvSents=[{p:0,text:''}]; }
     var cur=[];
-    rvSents.forEach(function(sent, si){
-      var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=sent.text;
-      var sh=tryAppend(sp);
-      if(sh>cap && cur.length>0){
-        // 当前句放不下且 cur 不空 → 把刚追加的拿掉，开新页
-        page.removeChild(sp);
-        rvPages.push(cur);
-        cur=[si];
-        var sp2=document.createElement('span'); sp2.className='si'; sp2.dataset.si=si; sp2.textContent=sent.text;
-        page.appendChild(sp2); void page.offsetHeight;
-        // 若新页这一句仍超高（超长句），保留它独占一页，不再细切（避免在视觉上跟丢阅读位置）
-      } else if(sh>cap && cur.length===0){
-        // 首句就超高：保留它独占一页
-        cur.push(si);
+
+    function addSent(si){
+      var sent=rvSents[si]||{p:0,text:''};
+      var pi=sent.p, para=rvPars[pi]||'';
+      var lastP=page.lastElementChild, lp;
+      if(rvIsHeading(para)){
+        if(lastP && lastP.className==='rv-h' && lastP.dataset.pi==String(pi)){ lp=lastP; }
+        else{ lp=document.createElement('p'); lp.className='rv-h'; lp.dataset.pi=String(pi); page.appendChild(lp); }
+      } else if(rvIsVerse(para)){
+        lp=document.createElement('p'); lp.className='rv-verse'; page.appendChild(lp);
       } else {
-        cur.push(si);
+        if(lastP && lastP.dataset.pi==String(pi) && lastP.className!=='rv-verse' && lastP.className!=='rv-h'){ lp=lastP; }
+        else{ lp=document.createElement('p'); lp.dataset.pi=String(pi); page.appendChild(lp); }
       }
+      var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=sent.text;
+      lp.appendChild(sp);
+      void page.offsetHeight;
+      return page.scrollHeight;
+    }
+
+    rvSents.forEach(function(sent, si){
+      var sh=addSent(si);
+      if(sh>cap && cur.length>0){
+        rvPages.push(cur.slice());
+        cur=[];
+        page.innerHTML='';
+        void page.offsetHeight;
+        addSent(si);
+      }
+      cur.push(si);
     });
     if(cur.length) rvPages.push(cur);
     if(!rvPages.length) rvPages=[[]];
-    // 索引：句→页
+
     rvPageOfSent=new Array(rvSents.length);
-    rvPages.forEach(function(arr,pg){
-      arr.forEach(function(si){ rvPageOfSent[si]=pg; });
-    });
-    // 段→页（取该段第一句所在页）
+    rvPages.forEach(function(arr,pg){ arr.forEach(function(si){ rvPageOfSent[si]=pg; }); });
     rvSents.forEach(function(s,si){
       if(s && typeof s.p==='number'){
         var pg=rvPageOfSent[si]||0;
@@ -2102,22 +2105,34 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     page.innerHTML='';
     var sArr=rvPages[rvIdx]||[];
     if(sArr.length){
-      // 按"段 pi"分组渲染：标题段只渲染一次(居中 rv-h，内含 .si 供朗读高亮)；普通段用 <p> 包裹句子；短行(诗)用 rv-verse 不缩进
       var grpStart=0;
       while(grpStart<sArr.length){
         var pi=rvSents[sArr[grpStart]] ? rvSents[sArr[grpStart]].p : 0;
         var grpEnd=grpStart+1;
         while(grpEnd<sArr.length && rvSents[sArr[grpEnd]] && rvSents[sArr[grpEnd]].p===pi) grpEnd++;
         var para=rvPars[pi]||'';
-        var lp=document.createElement('p');
-        if(rvIsHeading(para)) lp.className='rv-h';
-        else if(para.trim().length<=22) lp.className='rv-verse';
-        for(var k=grpStart;k<grpEnd;k++){
-          var si=sArr[k]; var sent=rvSents[si]||{p:0,text:''};
-          var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=sent.text;
-          lp.appendChild(sp);
+        if(rvIsHeading(para)){
+          var lp=document.createElement('p'); lp.className='rv-h';
+          for(var k=grpStart;k<grpEnd;k++){
+            var si=sArr[k]; var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=(rvSents[si]||{text:''}).text;
+            lp.appendChild(sp);
+          }
+          if(lp.childNodes.length) page.appendChild(lp);
+        } else if(rvIsVerse(para)){
+          for(var k=grpStart;k<grpEnd;k++){
+            var si=sArr[k]; var lp=document.createElement('p'); lp.className='rv-verse';
+            var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=(rvSents[si]||{text:''}).text;
+            lp.appendChild(sp);
+            page.appendChild(lp);
+          }
+        } else {
+          var lp=document.createElement('p');
+          for(var k=grpStart;k<grpEnd;k++){
+            var si=sArr[k]; var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=(rvSents[si]||{text:''}).text;
+            lp.appendChild(sp);
+          }
+          if(lp.childNodes.length) page.appendChild(lp);
         }
-        if(lp.childNodes.length) page.appendChild(lp);
         grpStart=grpEnd;
       }
     }
@@ -2128,6 +2143,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 
   function openReader(id, title, autoListen){
     rvBookId=id; rvBookTitle=title; rvCache={}; rvInflight={};
+    rvIsPoetry=!!RV_POETRY[id];
     _idb.get('book:'+id).then(function(book){
       var text=(book&&book.text)||'';
       rvBookAudio=(book&&(book.audio||book.file))||'';
