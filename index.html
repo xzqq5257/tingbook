@@ -1489,7 +1489,8 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   }
   var saved=null;
   try{ saved=localStorage.getItem(BG_KEY); }catch(e){}
-  if(saved) applyBg(saved);
+  if(!saved){ saved='assets/bg-girl.jpg'; }
+  applyBg(saved);
   var inp=document.createElement('input');
   inp.type='file'; inp.accept='image/*'; inp.style.display='none';
   document.body.appendChild(inp);
