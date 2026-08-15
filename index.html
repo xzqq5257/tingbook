@@ -255,12 +255,13 @@
 .rv-progress{ height:2px; background:rgba(128,128,128,.25); }
 .rv-progress i{ display:block; height:100%; width:0; background:var(--accent); transition:width .12s; }
 .reader-view[data-theme="night"] .rv-progress i{ background:var(--nc); }
-.rv-stage{ flex:1; overflow:hidden; padding:10px 14px; }
-.rv-page{ height:100%; overflow:auto; line-height:1.52; text-align:justify; font-size:17px; letter-spacing:.005em; }
-.rv-page p{ margin:0 0 .28em; text-indent:2em; }
-.rv-page p.rv-h{ text-indent:0; text-align:center; font-weight:700; margin:.7em 0 .4em; font-size:1.05em; letter-spacing:.04em; }
-.rv-page .si{ border-radius:4px; padding:0 1px; transition:background .15s, color .15s; }
-.rv-page .si.si-on{ background:rgba(184,144,47,.20); color:var(--accent); box-shadow:0 0 0 1px rgba(184,144,47,.25); }
+.rv-stage{ flex:1; overflow:hidden; padding:8px 18px; }
+.rv-page{ height:100%; overflow:auto; line-height:1.92; text-align:left; font-size:19px; letter-spacing:.02em; max-width:680px; margin:0 auto; padding:6px 2px; font-family:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",serif; }
+.rv-page p{ margin:0 0 .55em; text-indent:2em; }
+.rv-page p.rv-verse{ text-indent:0; margin:0 0 .2em; }
+.rv-page p.rv-h{ text-indent:0; text-align:center; font-weight:700; margin:.9em 0 .5em; font-size:1.08em; letter-spacing:.12em; color:var(--accent); }
+.rv-page .si{ border-radius:5px; transition:background .15s, color .15s; }
+.rv-page .si.si-on{ background:rgba(184,144,47,.20); color:var(--accent); box-shadow:0 0 0 1px rgba(184,144,47,.25); padding:0 2px; }
 .reader-view[data-theme="sepia"] .rv-page .si.si-on{ background:rgba(120,90,30,.18); color:#5a4326; }
 .reader-view[data-theme="night"] .rv-page .si.si-on{ background:rgba(236,65,65,.22); color:#ffd9d9; box-shadow:0 0 0 1px rgba(236,65,65,.30); }
 .rv-zones{ display:flex; height:52px; border-top:1px solid rgba(128,128,128,.18); }
@@ -2101,24 +2102,21 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     page.innerHTML='';
     var sArr=rvPages[rvIdx]||[];
     if(sArr.length){
-      // 把当前页内的句子按"段 pi"分组：每个非标题段用 <p> 包裹其句子 span；标题段单独居中 <p class='rv-h'>
+      // 按"段 pi"分组渲染：标题段只渲染一次(居中 rv-h，内含 .si 供朗读高亮)；普通段用 <p> 包裹句子；短行(诗)用 rv-verse 不缩进
       var grpStart=0;
       while(grpStart<sArr.length){
         var pi=rvSents[sArr[grpStart]] ? rvSents[sArr[grpStart]].p : 0;
         var grpEnd=grpStart+1;
         while(grpEnd<sArr.length && rvSents[sArr[grpEnd]] && rvSents[sArr[grpEnd]].p===pi) grpEnd++;
         var para=rvPars[pi]||'';
-        if(rvIsHeading(para)){
-          var hp=document.createElement('p'); hp.className='rv-h'; hp.textContent=para.trim();
-          page.appendChild(hp);
-        }
         var lp=document.createElement('p');
+        if(rvIsHeading(para)) lp.className='rv-h';
+        else if(para.trim().length<=22) lp.className='rv-verse';
         for(var k=grpStart;k<grpEnd;k++){
           var si=sArr[k]; var sent=rvSents[si]||{p:0,text:''};
           var sp=document.createElement('span'); sp.className='si'; sp.dataset.si=si; sp.textContent=sent.text;
           lp.appendChild(sp);
         }
-        // 即使该段是 heading 也允许紧跟其正文；如果 grpEnd==grpStart+0 不可能（while 退出条件保证至少一个）
         if(lp.childNodes.length) page.appendChild(lp);
         grpStart=grpEnd;
       }
