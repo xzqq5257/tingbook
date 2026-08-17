@@ -926,9 +926,10 @@ function playBook(b, startTime){
   audio.play().catch(()=>{});
   if(audio.readyState>=1) seekPlay(); else audio.addEventListener('loadedmetadata', seekPlay, {once:true});
   showPlayerPage(); playerPage.classList.toggle('music', window.__tingCtx === 'music'); updateNowPlaying();
+  updateMediaSession();
   saveProgress();
 }
-audio.addEventListener('loadedmetadata', ()=>{ curMarks=null; });
+audio.addEventListener('loadedmetadata', ()=>{ curMarks=null; if('mediaSession' in navigator && audio.duration){ try{ navigator.mediaSession.setPositionState({duration:audio.duration, position:audio.currentTime, playbackRate:audio.playbackRate||1}); }catch(e){} } });
 audio.addEventListener('timeupdate', ()=>{
   if(audio.duration){
     ppSeek.value = Math.min(1000, Math.floor(audio.currentTime/audio.duration*1000));
@@ -942,11 +943,12 @@ audio.addEventListener('timeupdate', ()=>{
     if(idx===-1 && t>=audio.duration) idx=curMarks.length-1;
     highlight(idx);
   }
+  if('mediaSession' in navigator && audio.duration && isFinite(audio.duration)){ try{ navigator.mediaSession.setPositionState({duration:audio.duration, position:Math.min(audio.currentTime,audio.duration), playbackRate:audio.playbackRate||1}); }catch(e){} }
   const now=Date.now();
   if(now-lastSave>3000 && (currentPlay.file||currentPlay.url)){ lastSave=now; saveProgress(); setPos(currentPlay.file||currentPlay.url, audio.currentTime); }
 });
-audio.addEventListener('pause', ()=>{ document.getElementById('pp-play').textContent='▶'; saveProgress(); updateResumeBar(); setPos(currentPlay.file||currentPlay.url, audio.currentTime); });
-audio.addEventListener('play', ()=>{ advanceGuard=false; document.getElementById('pp-play').textContent='⏸'; });
+audio.addEventListener('pause', ()=>{ document.getElementById('pp-play').textContent='▶'; if('mediaSession' in navigator){ try{ navigator.mediaSession.playbackState='paused'; }catch(e){} } saveProgress(); updateResumeBar(); setPos(currentPlay.file||currentPlay.url, audio.currentTime); });
+audio.addEventListener('play', ()=>{ advanceGuard=false; document.getElementById('pp-play').textContent='⏸'; if('mediaSession' in navigator){ try{ navigator.mediaSession.playbackState='playing'; }catch(e){} } });
 // 统一处理“一首播完”：单曲循环 / 列表循环 / 顺序播放下一首 / 全部播完
 // advanceGuard 防止 ended 与下方 timeupdate 兜底对同一首重复触发（否则会一次跳两首）
 function onTrackEnded(){
@@ -979,6 +981,42 @@ function onTrackEnded(){
   document.querySelectorAll('#list .card.playing').forEach(c=>c.classList.remove('playing'));
 }
 audio.addEventListener('ended', onTrackEnded);
+// ===== 锁屏/后台连续播放支持：Media Session API =====
+// 不接入时，锁屏或切后台浏览器会挂起 JS，ended/timeupdate 不派发，下一首的 play() 起不来；
+// 接入后媒体会话在后台保持活跃，ended 能正常触发，系统锁屏也能显示曲目并提供上一首/下一首按钮。
+function msNext(){
+  if(playingAll && playlist.length){ const n=(plIndex+1)%playlist.length; playItem(n,'start'); return; }
+  const idx=BOOKS.findIndex(b=>(b.file||b.audio||b.url)===currentPlay.file);
+  if(idx>=0){ playlist=BOOKS.slice(); playingAll=true; plIndex=(idx+1)%BOOKS.length; playItem(plIndex,'start'); }
+  else if(audio.src){ audio.currentTime=0; audio.play().catch(()=>{}); }
+}
+function msPrev(){
+  if(playingAll && playlist.length){ const n=(plIndex-1+playlist.length)%playlist.length; playItem(n,'start'); return; }
+  const idx=BOOKS.findIndex(b=>(b.file||b.audio||b.url)===currentPlay.file);
+  if(idx>0){ playlist=BOOKS.slice(); playingAll=true; plIndex=idx-1; playItem(plIndex,'start'); }
+  else if(audio.src){ audio.currentTime=0; audio.play().catch(()=>{}); }
+}
+function updateMediaSession(){
+  if(!('mediaSession' in navigator)) return;
+  try{
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentPlay.name || '听我读',
+      artist: 'tingbook',
+      album: '听我读 · 倾听你的声音',
+      artwork: [{ src: 'assets/bg-girl.jpg', sizes: '512x512', type: 'image/jpeg' }]
+    });
+    navigator.mediaSession.playbackState = 'playing';
+  }catch(e){}
+}
+if('mediaSession' in navigator){
+  try{
+    navigator.mediaSession.setActionHandler('play', ()=>audio.play().catch(()=>{}));
+    navigator.mediaSession.setActionHandler('pause', ()=>audio.pause());
+    navigator.mediaSession.setActionHandler('nexttrack', msNext);
+    navigator.mediaSession.setActionHandler('previoustrack', msPrev);
+    navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(d && d.seekTime!=null){ try{ audio.currentTime=d.seekTime; }catch(e){} } });
+  }catch(e){}
+}
 // 兜底：部分流式音频 / 个别浏览器 ended 事件不触发，用 timeupdate 检测接近结尾来续播
 audio.addEventListener('timeupdate', ()=>{
   if(!advanceGuard && audio.duration && audio.currentTime >= audio.duration - 0.4) onTrackEnded();
