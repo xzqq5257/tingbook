@@ -360,8 +360,50 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   .bg-sw:hover{ border-color:var(--accent); }
   .bg-sw.active{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(184,144,47,.35); }
 </style>
+<style>
+#siteGate{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1b1f2a,#2a2f3e);font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif}
+#siteGate .box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:32px 28px;width:min(86vw,320px);text-align:center;color:#eee}
+#siteGate h1{font-size:18px;margin:0 0 6px;font-weight:600}
+#siteGate p{font-size:13px;opacity:.7;margin:0 0 18px}
+#siteGate input{width:100%;box-sizing:border-box;padding:11px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:#fff;font-size:15px;outline:none;margin-bottom:12px}
+#siteGate button{width:100%;padding:11px;border:0;border-radius:9px;background:#e23b3b;color:#fff;font-size:15px;cursor:pointer}
+#siteGate button:active{transform:translateY(1px)}
+#siteGate .err{color:#ff9a9a;font-size:12px;min-height:16px;margin-top:8px}
+</style>
 </head>
 <body>
+<div id="siteGate">
+  <div class="box">
+    <h1>听我读 · 私人空间</h1>
+    <p>请输入访问密码</p>
+    <input id="gatePwd" type="password" placeholder="密码" autocomplete="off">
+    <button id="gateBtn" type="button">进入</button>
+    <div class="err" id="gateErr"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var SITE_PASSWORD = "tingbook2026";
+  var KEY = "ting_gate_ok";
+  function unlocked(){ try{ return sessionStorage.getItem(KEY)==="1"; }catch(e){ return false; } }
+  function reveal(){
+    var g=document.getElementById("siteGate"); if(g&&g.parentNode) g.parentNode.removeChild(g);
+    document.documentElement.style.overflow=""; if(document.body) document.body.style.overflow="";
+  }
+  function showErr(m){ var e=document.getElementById("gateErr"); if(e) e.textContent=m; }
+  function tryUnlock(){
+    var i=document.getElementById("gatePwd"); var v=i?i.value:"";
+    if(v===SITE_PASSWORD){ try{sessionStorage.setItem(KEY,"1");}catch(e){} reveal(); }
+    else { showErr("密码错误，请重试"); if(i){ i.value=""; i.focus(); } }
+  }
+  if(unlocked()){ reveal(); return; }
+  document.documentElement.style.overflow="hidden"; if(document.body) document.body.style.overflow="hidden";
+  function bind(){ var i=document.getElementById("gatePwd"), b=document.getElementById("gateBtn");
+    if(i) i.addEventListener("keydown",function(e){ if(e.key==="Enter") tryUnlock(); });
+    if(b) b.addEventListener("click",tryUnlock); if(i) i.focus(); }
+  if(document.readyState==="loading") window.addEventListener("DOMContentLoaded",bind); else bind();
+})();
+</script>
 <div id="bg-layer"></div>
 <header class="cover">
   <div class="cover-art">
