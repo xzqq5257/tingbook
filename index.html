@@ -381,7 +381,8 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 .album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:6px;padding:10px 10px 12px}
 /* 相册照片固定九宫格（3 列）；#album-photos 仅相册 tab 使用，不影响电台 tab 的 .album-grid */
 #album-photos{display:block;columns:3;column-gap:8px;padding:10px 10px 12px}
-.album-grid:empty::before{content:"还没有照片或视频。点上方「📤 上传照片/视频」按钮，或手机端点右下角 📷 悬浮按钮拍照／选图。";column-span:all;-webkit-column-span:all;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7}
+.album-grid:empty::before{content:"还没有照片或视频。点上方「📤 上传照片/视频」按钮，或手机端点右下角 📷 悬浮按钮拍照／选图。";display:block;column-span:all;-webkit-column-span:all;width:100%;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7;box-sizing:border-box}
+.album-empty{grid-column:1/-1;column-span:all;-webkit-column-span:all;display:block;width:100%;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7;box-sizing:border-box}
 .album-cell{position:relative;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1);break-inside:avoid;margin-bottom:8px}
 .album-cell img,.album-cell video{width:100%;height:auto;display:block;background:#111}
 .album-cell .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;backdrop-filter:blur(2px)}
@@ -3015,21 +3016,39 @@ const ALBUM = (function(){
 
   async function list(){
     setStatus('加载中…');
+    grid.innerHTML = '';
+    if(!navigator.onLine){
+      setStatus('离线：请检查网络后点击相册 tab 重试');
+      return;
+    }
     try{
-      const r = await fetch('/api/album-list?_=' + Date.now());
-      const j = await r.json();
-      if(!r.ok || !j.ok) throw new Error(j.error||('HTTP '+r.status));
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      const r = await fetch('/api/album-list?_=' + Date.now(), {signal: ctrl.signal});
+      clearTimeout(timer);
+      const j = await r.json().catch(() => ({}));
+      if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
       files = j.files || [];
       render();
-      setStatus(files.length ? ('共 ' + files.length + ' 张') : '照片/视频会保存在你自己的 GitHub 仓库');
+      setStatus(files.length ? ('共 ' + files.length + ' 项') : '照片/视频会保存在你自己的 GitHub 仓库');
     }catch(e){
-      setStatus('加载失败：' + e.message);
+      const msg = (e && e.name === 'AbortError') ? '请求超时（15s）' : (e && e.message) || '未知错误';
+      setStatus('加载失败：' + msg + '（可再次点击相册 tab 重试）');
       grid.innerHTML = '';
+      render();
     }
   }
 
   function render(){
     grid.innerHTML = '';
+    if(!files.length){
+      const empty = document.createElement('div');
+      empty.className = 'album-empty';
+      empty.textContent = '还没有照片或视频。点上方「📤 上传照片/视频」按钮，或手机端点右下角 📷 悬浮按钮拍照／选图。';
+      grid.appendChild(empty);
+      grid._cachedCount = 0;
+      return;
+    }
     files.forEach((f, i) => {
       const cell = document.createElement('div');
       cell.className = 'album-cell';
