@@ -379,6 +379,8 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 .album-count{font-size:12px;color:var(--muted);padding:10px 14px 0}
 .album-hint{font-size:12px;color:var(--muted);padding:6px 14px 0;line-height:1.5}
 .album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:6px;padding:10px 10px 12px}
+/* 相册照片固定九宫格（3 列）；#album-photos 仅相册 tab 使用，不影响电台 tab 的 .album-grid */
+#album-photos{grid-template-columns:repeat(3,1fr)}
 .album-grid:empty::before{content:"还没有照片或视频。点右上「上传」按钮，手机端点右下角 📷 悬浮按钮，即可挑选本地图片／短视频，或直接拍照上传。";display:block;grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:60px 10px;line-height:1.6}
 .album-cell{position:relative;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .album-cell img,.album-cell video{width:100%;height:100%;object-fit:cover;display:block;background:#111}
@@ -643,7 +645,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     <span id="album-status" class="meta">就绪</span>
   </div>
   <div class="album-hint">照片限 15MB，视频限 50MB。上传后图片会缩到 1920px 长边，点击任一格进入全屏查看，长按「删除」移除。</div>
-  <div id="album-grid" class="album-grid"></div>
+  <div id="album-photos" class="album-grid"></div>
 
   <div id="album-viewer" aria-hidden="true">
     <div class="topbar">
@@ -2984,7 +2986,7 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 const ALBUM = (function(){
   const MAX_PHOTO = 15 * 1024 * 1024;   // 15 MB
   const MAX_VIDEO = 50 * 1024 * 1024;   // 50 MB
-  const grid = document.getElementById('album-grid');
+  const grid = document.getElementById('album-photos');
   const fileInput = document.getElementById('album-file');
   const status = document.getElementById('album-status');
   const viewer = document.getElementById('album-viewer');
