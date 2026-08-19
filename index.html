@@ -380,8 +380,8 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 .album-hint{font-size:12px;color:var(--muted);padding:6px 14px 0;line-height:1.5}
 .album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:6px;padding:10px 10px 12px}
 /* 相册照片固定九宫格（3 列）；#album-photos 仅相册 tab 使用，不影响电台 tab 的 .album-grid */
-#album-photos{display:block;columns:3;column-gap:8px;padding:10px 10px 12px}
-.album-grid:empty::before{content:"还没有照片或视频。点上方「📤 上传照片/视频」按钮，或手机端点右下角 📷 悬浮按钮拍照／选图。";display:block;column-span:all;-webkit-column-span:all;width:100%;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7;box-sizing:border-box}
+#album-photos{display:block!important;columns:3!important;column-gap:8px;padding:10px 10px 12px;grid-template-columns:none;gap:0 0}
+#album-photos:empty::before{content:"还没有照片或视频。点上方「📤 上传照片/视频」按钮，或手机端点右下角 📷 悬浮按钮拍照／选图。";display:block;column-span:all;-webkit-column-span:all;width:100%;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7;box-sizing:border-box}
 .album-empty{grid-column:1/-1;column-span:all;-webkit-column-span:all;display:block;width:100%;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7;box-sizing:border-box}
 .album-cell{position:relative;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1);break-inside:avoid;margin-bottom:8px}
 .album-cell img,.album-cell video{width:100%;height:auto;display:block;background:#111}
@@ -652,7 +652,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     <span id="album-status" class="meta">就绪</span>
   </div>
   <div class="album-hint">照片限 15MB，视频限 50MB。上传后图片会缩到 1920px 长边，点击任一格进入全屏查看，长按「删除」移除。</div>
-  <div id="album-photos" class="album-grid"></div>
+  <div id="album-photos"></div>
 
   <div id="album-viewer" aria-hidden="true">
     <div class="topbar">
@@ -2993,12 +2993,17 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 const ALBUM = (function(){
   const MAX_PHOTO = 15 * 1024 * 1024;   // 15 MB
   const MAX_VIDEO = 50 * 1024 * 1024;   // 50 MB
-  const grid = document.getElementById('album-photos');
-  const fileInput = document.getElementById('album-file');
-  const status = document.getElementById('album-status');
-  const viewer = document.getElementById('album-viewer');
-  const stage = document.getElementById('av-stage');
-  const avCounter = document.getElementById('av-counter');
+  var grid = document.getElementById('album-photos');
+  var fileInput = document.getElementById('album-file');
+  var status = document.getElementById('album-status');
+  var viewer = document.getElementById('album-viewer');
+  var stage = document.getElementById('av-stage');
+  var avCounter = document.getElementById('av-counter');
+  // Safety: if core elements missing, return dummy to prevent crashes
+  if(!grid){
+    console.error('[ALBUM] #album-photos not found, module disabled');
+    return { list: function(){ console.warn('[ALBUM] list() called but grid missing'); } };
+  }
   let files = [];        // 内存中所有文件（{name,size,rawUrl,htmlUrl,type}）
   let viewIdx = -1;      // 当前查看的索引
   let isZoomed = false;
@@ -3247,11 +3252,12 @@ const ALBUM = (function(){
     if(viewIdx < 0 || !files[viewIdx]) return;
     const f = files[viewIdx];
     const total = files.length;
-    avCounter.textContent = (viewIdx+1) + ' / ' + total;
+    if(avCounter) avCounter.textContent = (viewIdx+1) + ' / ' + total;
     const single = (total<=1);
-    document.getElementById('av-prev').disabled = single;
-    document.getElementById('av-next').disabled = single;
-    document.getElementById('av-download').onclick = () => {
+    var _p = document.getElementById('av-prev'); if(_p) _p.disabled = single;
+    var _n = document.getElementById('av-next'); if(_n) _n.disabled = single;
+    var _dl = document.getElementById('av-download');
+    if(_dl) _dl.onclick = () => {
       const a = document.createElement('a');
       a.href = f.rawUrl; a.download = f.name; a.target = '_blank';
       document.body.appendChild(a); a.click(); a.remove();
@@ -3275,10 +3281,13 @@ const ALBUM = (function(){
     h.classList.add('show'); clearTimeout(h._t);
     h._t = setTimeout(() => h.classList.remove('show'), 2400);
   }
-  document.getElementById('av-close').addEventListener('click', closeViewer);
-  document.getElementById('av-prev').addEventListener('click', goPrev);
-  document.getElementById('av-next').addEventListener('click', goNext);
-  viewer.addEventListener('click', (e) => { if(e.target === viewer) closeViewer(); });
+  var _avClose = document.getElementById('av-close');
+  var _avPrev = document.getElementById('av-prev');
+  var _avNext = document.getElementById('av-next');
+  if(_avClose) _avClose.addEventListener('click', closeViewer);
+  if(_avPrev) _avPrev.addEventListener('click', goPrev);
+  if(_avNext) _avNext.addEventListener('click', goNext);
+  if(viewer) viewer.addEventListener('click', (e) => { if(e.target === viewer) closeViewer(); });
   document.addEventListener('keydown', (e) => {
     if(!viewer.classList.contains('show')) return;
     if(e.key === 'Escape') closeViewer();
@@ -3293,11 +3302,13 @@ const ALBUM = (function(){
     const dx=x-_sx, dy=y-_sy; _drag=false; _sx=_sy=null;
     if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)){ dx<0 ? goNext() : goPrev(); }
   }
-  stage.addEventListener('touchstart', (e)=>{ if(e.touches.length===1) _down(e.touches[0].clientX, e.touches[0].clientY); }, {passive:true});
-  stage.addEventListener('touchend', (e)=>{ if(e.changedTouches.length) _up(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }, {passive:true});
-  stage.addEventListener('pointerdown', (e)=>{ if(e.pointerType==='mouse') _down(e.clientX, e.clientY); });
-  stage.addEventListener('pointerup', (e)=>{ if(e.pointerType==='mouse') _up(e.clientX, e.clientY); });
-  stage.addEventListener('pointercancel', ()=>{ _drag=false; _sx=_sy=null; });
+  if(stage){
+    stage.addEventListener('touchstart', (e)=>{ if(e.touches.length===1) _down(e.touches[0].clientX, e.touches[0].clientY); }, {passive:true});
+    stage.addEventListener('touchend', (e)=>{ if(e.changedTouches.length) _up(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }, {passive:true});
+    stage.addEventListener('pointerdown', (e)=>{ if(e.pointerType==='mouse') _down(e.clientX, e.clientY); });
+    stage.addEventListener('pointerup', (e)=>{ if(e.pointerType==='mouse') _up(e.clientX, e.clientY); });
+    stage.addEventListener('pointercancel', ()=>{ _drag=false; _sx=_sy=null; });
+  }
 
   // 每次打开相册 tab 都重新拉取，保证新上传的照片立刻可见
   document.querySelector('button[data-tab="album"]').addEventListener('click', () => { list(); });
@@ -3305,10 +3316,22 @@ const ALBUM = (function(){
   return { list };
 })();
 
-// 首次进站时若 hash 锚点不是 album/reading/music/mine，悄悄 list 一次
-if(location.hash === '#album'){
-  setTimeout(() => { ALBUM.list(); history.replaceState(null,'', location.pathname); }, 100);
-}
+// 首次进站：如果 saved tab 或 hash 指向 album，自动加载
+(function(){
+  function _autoList(){
+    try{ ALBUM.list(); }catch(e){ console.error('[ALBUM] auto list failed:', e); }
+    try{ history.replaceState(null,'', location.pathname); }catch(e){}
+  }
+  if(location.hash === '#album'){
+    setTimeout(_autoList, 200);
+  } else {
+    var savedTab = '';
+    try{ savedTab = localStorage.getItem('tb_tab') || ''; }catch(e){}
+    if(savedTab === 'album'){
+      setTimeout(_autoList, 200);
+    }
+  }
+})();
 </script>
 </body>
 </body>
