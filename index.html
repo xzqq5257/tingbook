@@ -1164,6 +1164,28 @@ audio.addEventListener('timeupdate', ()=>{
   if(!advanceGuard && audio.duration && audio.currentTime >= audio.duration - 0.4) onTrackEnded();
 });
 
+// ===== 锁屏/切后台自动恢复播放 =====
+// 手机锁屏或切后台时，浏览器会暂停 <audio>（iOS 必现，部分 Android 也会），
+// 解锁/切回前台后不会自动恢复。媒体会话(mediaSession)只解决"后台续播下一首"，
+// 不负责"恢复当前这一首"。这里跟踪播放意图(wantPlaying)：只有在可见状态下
+// 用户主动暂停才清掉意图；锁屏导致的暂停(此时 visibilityState==='hidden')保留意图。
+// 回到前台(可见)且意图仍为播放、音频却处于暂停时，自动 resume。
+let wantPlaying = false;
+audio.addEventListener('play', ()=>{ wantPlaying = true; });
+audio.addEventListener('pause', ()=>{
+  // 可见状态下暂停 = 用户主动暂停，不再自动恢复
+  if(document.visibilityState === 'visible') wantPlaying = false;
+});
+function tryResume(){
+  if(document.visibilityState === 'hidden') return;
+  if(audio.paused && wantPlaying){
+    audio.play().catch(()=>{});
+    if('mediaSession' in navigator){ try{ navigator.mediaSession.playbackState='playing'; }catch(e){} }
+  }
+}
+document.addEventListener('visibilitychange', tryResume);
+window.addEventListener('pageshow', tryResume);   // 从 bfcache 恢复（iOS 常见）
+
 function playItem(i, mode){
   if(i<0||i>=playlist.length) return;
   plIndex=i; const b=playlist[i];
