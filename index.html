@@ -369,6 +369,48 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 #siteGate button{width:100%;padding:11px;border:0;border-radius:9px;background:#e23b3b;color:#fff;font-size:15px;cursor:pointer}
 #siteGate button:active{transform:translateY(1px)}
 #siteGate .err{color:#ff9a9a;font-size:12px;min-height:16px;margin-top:8px}
+
+/* ============ 相册 Tab ============ */
+.album-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 14px 8px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:10}
+.album-toolbar label{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+.album-toolbar label input[type=file]{display:none}
+.album-toolbar .ghost-btn{background:transparent;color:var(--muted);border:1px solid var(--line);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+.album-toolbar .meta{font-size:12px;color:var(--muted);flex:1;text-align:right}
+.album-count{font-size:12px;color:var(--muted);padding:10px 14px 0}
+.album-hint{font-size:12px;color:var(--muted);padding:6px 14px 0;line-height:1.5}
+.album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:6px;padding:10px 10px 12px}
+.album-grid:empty::before{content:"还没有照片或视频。点上方「上传」按钮，挑选几张本地图片／短视频就好。";display:block;grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:60px 10px}
+.album-cell{position:relative;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.album-cell img,.album-cell video{width:100%;height:100%;object-fit:cover;display:block;background:#111}
+.album-cell .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;backdrop-filter:blur(2px)}
+.album-cell .badge.video{background:rgba(184,144,47,.85)}
+.album-cell .badge.photo{background:rgba(58,143,111,.85)}
+.album-cell .name{position:absolute;bottom:0;left:0;right:0;font-size:10px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));padding:14px 6px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+.album-cell .del{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;backdrop-filter:blur(2px)}
+.album-cell:hover .del{display:flex}
+.album-cell.uploading{opacity:.7;pointer-events:none}
+.album-cell.uploading::after{content:"上传中…";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px}
+.album-cell.fail::after{content:"❌ 失败";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(192,40,40,.85);padding:4px 10px;border-radius:4px;font-size:12px}
+
+/* 全屏查看器 */
+#album-viewer{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:1000;display:none;flex-direction:column}
+#album-viewer.show{display:flex}
+#album-viewer .topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;color:#fff;background:linear-gradient(rgba(0,0,0,.55),transparent);z-index:2;font-size:13px}
+#album-viewer .topbar b{font-weight:500;font-size:13px;opacity:.85;margin-right:8px}
+#album-viewer .topbar .actions{display:flex;gap:8px}
+#album-viewer .topbar button{background:rgba(255,255,255,.15);color:#fff;border:0;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;backdrop-filter:blur(4px)}
+#album-viewer .topbar button:hover{background:rgba(255,255,255,.28)}
+#album-viewer .stage{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+#album-viewer .stage img{max-width:100%;max-height:100%;object-fit:contain;transition:transform .2s ease;cursor:zoom-in;user-select:none;-webkit-user-drag:none}
+#album-viewer .stage img.zoomed{cursor:zoom-out;transform:scale(2)}
+#album-viewer .stage video{max-width:100%;max-height:100%;outline:none}
+#album-viewer .nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);color:#fff;border:0;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);user-select:none}
+#album-viewer .nav:hover{background:rgba(255,255,255,.28)}
+#album-viewer .nav.prev{left:14px}
+#album-viewer .nav.next{right:14px}
+#album-viewer .nav:disabled{opacity:.25;cursor:default}
+#album-viewer .counter{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.4);padding:4px 12px;border-radius:14px;z-index:2}
+@media (max-width:520px){.album-grid{grid-template-columns:repeat(3,1fr);gap:4px}.album-cell{border-radius:6px}}
 </style>
 </head>
 <body>
@@ -480,6 +522,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 <nav class="tabs" id="main-tabs">
   <button class="tab-btn active" data-tab="reading"><span class="ic">📖</span>阅读</button>
   <button class="tab-btn" data-tab="music"><span class='ic'><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="rv-radio-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB74D"/><stop offset="1" stop-color="#FF6E6E"/></linearGradient></defs><path d="M2.6 6.2a9.5 9.5 0 0 1 0 11.6" stroke="#FFB74D" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M5.4 8.4a5.5 5.5 0 0 1 0 7.2" stroke="#FF8A65" stroke-width="1.8" stroke-linecap="round" fill="none"/><line x1="11.2" y1="7.8" x2="11.2" y2="5.4" stroke="#FF6E6E" stroke-width="1.6" stroke-linecap="round"/><rect x="9.8" y="7.8" width="11.6" height="11" rx="2.4" fill="url(#rv-radio-g)"/><circle cx="13.2" cy="13.4" r="2.4" fill="#fff"/><circle cx="13.2" cy="13.4" r="1" fill="#FF6E6E"/><rect x="16.6" y="10" width="3.6" height="1.1" rx="0.55" fill="#fff" opacity=".85"/><rect x="16.6" y="12" width="3" height="1.1" rx="0.55" fill="#fff" opacity=".7"/></svg></span>电台</button>
+  <button class="tab-btn" data-tab="album"><span class="ic">📷</span>相册</button>
   <button class="tab-btn" data-tab="mine"><span class="ic">👤</span>我的</button>
 </nav>
 <main>
@@ -552,6 +595,32 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     <div style="margin-top:8px"><button id="poly-save" class="play-btn">💾 保存规则</button><span id="poly-msg" class="meta" style="margin-left:8px"></span></div>
   </div>
   <p class="hint">封面秒开，点哪篇才加载哪篇音频（音频托管在 GitHub Pages，按需流式播放）。带同步字幕、倍速、定时关闭与断点续播。</p>
+</section>
+
+<section id="tab-album" class="tab-panel">
+  <div class="album-toolbar">
+    <label title="支持图片(jpg/png/webp/gif)和视频(mp4/webm)；多选">
+      <input id="album-file" type="file" accept="image/*,video/*" multiple>
+      <span>📤 上传照片/视频</span>
+    </label>
+    <span id="album-status" class="meta">就绪</span>
+  </div>
+  <div class="album-hint">照片限 15MB，视频限 50MB。上传后图片会缩到 1920px 长边，点击任一格进入全屏查看，长按「删除」移除。</div>
+  <div id="album-grid" class="album-grid"></div>
+
+  <div id="album-viewer" aria-hidden="true">
+    <div class="topbar">
+      <span><b id="av-name">文件</b><span id="av-meta"></span></span>
+      <div class="actions">
+        <button id="av-download" title="下载">⤓ 下载</button>
+        <button id="av-close" title="关闭">✕ 关闭</button>
+      </div>
+    </div>
+    <button class="nav prev" id="av-prev" aria-label="上一张">‹</button>
+    <div class="stage" id="av-stage"></div>
+    <button class="nav next" id="av-next" aria-label="下一张">›</button>
+    <div class="counter" id="av-counter">0 / 0</div>
+  </div>
 </section>
 
 <section id="tab-mine" class="tab-panel">
@@ -2869,5 +2938,285 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   markActive(saved);
 })();
 </script>
+
+<script>
+// ==================== 相册模块 ====================
+// 数据后端：Cloudflare Functions（/api/album-list, /api/album-upload, /api/album-delete）
+// 文件落地：GitHub 仓库 xzqq5257/tingbook 的 photos/ 目录（raw.githubusercontent.com 直接出图，Pages 静态也能命中）
+const ALBUM = (function(){
+  const MAX_PHOTO = 15 * 1024 * 1024;   // 15 MB
+  const MAX_VIDEO = 50 * 1024 * 1024;   // 50 MB
+  const grid = document.getElementById('album-grid');
+  const fileInput = document.getElementById('album-file');
+  const status = document.getElementById('album-status');
+  const viewer = document.getElementById('album-viewer');
+  const stage = document.getElementById('av-stage');
+  const avName = document.getElementById('av-name');
+  const avMeta = document.getElementById('av-meta');
+  const avCounter = document.getElementById('av-counter');
+  let files = [];        // 内存中所有文件（{name,size,rawUrl,htmlUrl,type}）
+  let viewIdx = -1;      // 当前查看的索引
+  let isZoomed = false;
+
+  function fmtSize(n){
+    if(n<1024) return n+'B';
+    if(n<1024*1024) return (n/1024).toFixed(1)+'KB';
+    return (n/1024/1024).toFixed(2)+'MB';
+  }
+  function escHtml(s){return (s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function setStatus(text){ status.textContent = text; }
+
+  function isImg(name){ return /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(name); }
+  function isVid(name){ return /\.(mp4|webm|mov|m4v|3gp)$/i.test(name); }
+
+  async function list(){
+    setStatus('加载中…');
+    try{
+      const r = await fetch('/api/album-list?_=' + Date.now());
+      const j = await r.json();
+      if(!r.ok || !j.ok) throw new Error(j.error||('HTTP '+r.status));
+      files = j.files || [];
+      render();
+      setStatus(files.length ? ('共 ' + files.length + ' 张') : '照片/视频会保存在你自己的 GitHub 仓库');
+    }catch(e){
+      setStatus('加载失败：' + e.message);
+      grid.innerHTML = '';
+    }
+  }
+
+  function render(){
+    grid.innerHTML = '';
+    files.forEach((f, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'album-cell';
+      cell.dataset.idx = i;
+      const typeLabel = isVid(f.name) ? '<span class="badge video">🎬 视频</span>' : '<span class="badge photo">📷 照片</span>';
+      const thumbSrc = isVid(f.name) ? '' : f.rawUrl;
+      const vidFirstFrame = isVid(f.name) ? ('<video src="'+escHtml(f.rawUrl)+'#t=0.5" muted preload="metadata" playsinline></video>') : ('<img loading="lazy" src="'+escHtml(thumbSrc)+'" alt="">');
+      cell.innerHTML = typeLabel + vidFirstFrame +
+        '<button class="del" title="删除">×</button>' +
+        '<div class="name">'+escHtml(f.name)+'</div>';
+      cell.querySelector('img,video').addEventListener('click', () => openViewer(i));
+      cell.addEventListener('click', (e) => { if(!e.target.classList.contains('del')) openViewer(i); });
+      cell.querySelector('.del').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if(confirm('删除「'+f.name+'」？此操作无法撤销。')) del(f);
+      });
+      grid.appendChild(cell);
+    });
+    grid._cachedCount = files.length;
+  }
+
+  // 客户端压缩大照片
+  async function compressIfNeeded(file){
+    if(!file.type.startsWith('image/')) return file;
+    if(file.size <= 1024*1024) return file; // ≤1MB 不压
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const max = 1920;
+        let w = img.width, h = img.height;
+        if(Math.max(w,h) > max){
+          if(w>=h){ h = Math.round(h*max/w); w = max; }
+          else{ w = Math.round(w*max/h); h = max; }
+        }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        c.toBlob((blob) => {
+          URL.revokeObjectURL(url);
+          if(!blob){ resolve(file); return; }
+          // 用 .jpg 输出（保留 png 仅在原图 ≤300KB 时），否则 JPEG 85%
+          const ext = (blob.type==='image/png' && file.size < 300*1024) ? 'png' : 'jpg';
+          const renamed = new File([blob], file.name.replace(/\.[^.]+$/, '') + (ext==='png'?'.png':'.jpg'), {type: blob.type});
+          resolve(renamed);
+        }, ext==='png' ? 'image/png' : 'image/jpeg', ext==='png' ? undefined : 0.85);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
+  async function uploadOne(file){
+    let blob;
+    if(file.type.startsWith('image/')){
+      const result = await compressIfNeeded(file);
+      blob = result;
+    } else {
+      blob = file;
+    }
+    const fd = new FormData();
+    fd.append('file', blob, file.name);
+    const r = await fetch('/api/album-upload', { method: 'POST', body: fd });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok || !j.ok){ throw new Error(j.error || ('HTTP '+r.status)); }
+    return j.file;
+  }
+
+  fileInput.addEventListener('change', async () => {
+    const picked = Array.from(fileInput.files || []);
+    fileInput.value = '';
+    if(!picked.length) return;
+    const photoList = picked.filter(f => f.type.startsWith('image/'));
+    const videoList = picked.filter(f => f.type.startsWith('video/'));
+    const otherList = picked.filter(f => !f.type.startsWith('image/') && !f.type.startsWith('video/'));
+    if(otherList.length){
+      alert('已跳过 '+otherList.length+' 个不支持的文件（仅图片和视频）');
+    }
+    // 在网格头部加占位 cell
+    const placeholders = [];
+    picked.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/')).forEach(() => {
+      const c = document.createElement('div');
+      c.className = 'album-cell uploading';
+      c.innerHTML = '<span class="badge">…</span><div class="name">上传中</div>';
+      grid.prepend(c);
+      placeholders.push(c);
+    });
+    let ok = 0, fail = 0;
+    let i = 0;
+    for(const f of picked){
+      const isImg_ = f.type.startsWith('image/');
+      const isVid_ = f.type.startsWith('video/');
+      if(!isImg_ && !isVid_) { i++; continue; }
+      const limit = isImg_ ? MAX_PHOTO : MAX_VIDEO;
+      if(f.size > limit){
+        fail++;
+        const c = placeholders[i];
+        if(c){ c.classList.remove('uploading'); c.classList.add('fail'); c.querySelector('.name').textContent = '超过 '+(isImg_?'15MB':'50MB'); }
+        setStatus('「'+f.name+'」超过大小限制，已跳过');
+        i++;
+        continue;
+      }
+      const c = placeholders[i];
+      try{
+        setStatus('上传 '+(ok+fail+1)+'/'+picked.length+'：'+f.name);
+        const savedFile = await uploadOne(f);
+        ok++;
+        if(c){ c.remove(); }
+        files.unshift(savedFile);
+        const cell = createCell(savedFile, 0);
+        grid.prepend(cell);
+      }catch(e){
+        fail++;
+        if(c){ c.classList.remove('uploading'); c.classList.add('fail'); c.querySelector('.name').textContent = '上传失败'; }
+        setStatus('上传失败：'+f.name+' - '+e.message);
+      }
+      i++;
+    }
+    setStatus('完成：成功 '+ok+'，失败 '+fail);
+  });
+
+  function createCell(f, idx){
+    const cell = document.createElement('div');
+    cell.className = 'album-cell';
+    cell.dataset.idx = idx;
+    const typeLabel = isVid(f.name) ? '<span class="badge video">🎬 视频</span>' : '<span class="badge photo">📷 照片</span>';
+    if(isVid(f.name)){
+      cell.innerHTML = typeLabel + '<video src="'+escHtml(f.rawUrl)+'#t=0.5" muted preload="metadata" playsinline></video>' +
+        '<button class="del" title="删除">×</button><div class="name">'+escHtml(f.name)+'</div>';
+    } else {
+      cell.innerHTML = typeLabel + '<img loading="lazy" src="'+escHtml(f.rawUrl)+'" alt="">' +
+        '<button class="del" title="删除">×</button><div class="name">'+escHtml(f.name)+'</div>';
+    }
+    cell.addEventListener('click', (e) => {
+      if(e.target.classList.contains('del')) return;
+      openViewer(idx);
+    });
+    cell.querySelector('.del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(confirm('删除「'+f.name+'」？此操作无法撤销。')) del(f);
+    });
+    return cell;
+  }
+
+  async function del(f){
+    setStatus('删除 '+f.name+'…');
+    try{
+      const r = await fetch('/api/album-delete?_=' + Date.now(), { method: 'DELETE', headers: {'content-type':'application/json'}, body: JSON.stringify({path: f.path, sha: f.sha, message: 'chore: delete '+f.name}) });
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok || !j.ok){ throw new Error(j.error || ('HTTP '+r.status)); }
+      setStatus('已删除 '+f.name);
+      // 本地移除
+      const idx = files.indexOf(f);
+      if(idx>=0){ files.splice(idx,1); }
+      await list();
+    }catch(e){
+      setStatus('删除失败：'+e.message);
+    }
+  }
+
+  // 全屏查看器
+  function openViewer(idx){
+    if(!files.length) return;
+    viewIdx = idx;
+    showCurrent();
+    viewer.classList.add('show');
+    viewer.setAttribute('aria-hidden','false');
+  }
+  function closeViewer(){
+    viewer.classList.remove('show');
+    viewer.setAttribute('aria-hidden','true');
+    stage.innerHTML = '';
+    viewIdx = -1;
+    isZoomed = false;
+  }
+  function showCurrent(){
+    if(viewIdx < 0 || !files[viewIdx]) return;
+    const f = files[viewIdx];
+    avName.textContent = f.name;
+    avMeta.textContent = ' · ' + fmtSize(f.size);
+    const total = files.length;
+    avCounter.textContent = (viewIdx+1) + ' / ' + total;
+    document.getElementById('av-prev').disabled = (viewIdx<=0);
+    document.getElementById('av-next').disabled = (viewIdx>=total-1);
+    document.getElementById('av-download').onclick = () => {
+      const a = document.createElement('a');
+      a.href = f.rawUrl; a.download = f.name; a.target = '_blank';
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+    stage.innerHTML = '';
+    if(isVid(f.name)){
+      const v = document.createElement('video');
+      v.src = f.rawUrl; v.controls = true; v.autoplay = true; v.playsInline = true;
+      v.style.maxHeight = '90vh'; v.style.maxWidth = '100%';
+      stage.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = f.rawUrl; img.alt = f.name;
+      img.addEventListener('click', () => {
+        isZoomed = !isZoomed;
+        img.classList.toggle('zoomed', isZoomed);
+      });
+      stage.appendChild(img);
+    }
+  }
+  document.getElementById('av-close').addEventListener('click', closeViewer);
+  document.getElementById('av-prev').addEventListener('click', () => { if(viewIdx>0){ viewIdx--; showCurrent(); } });
+  document.getElementById('av-next').addEventListener('click', () => { if(viewIdx<files.length-1){ viewIdx++; showCurrent(); } });
+  viewer.addEventListener('click', (e) => { if(e.target === viewer) closeViewer(); });
+  document.addEventListener('keydown', (e) => {
+    if(!viewer.classList.contains('show')) return;
+    if(e.key === 'Escape') closeViewer();
+    else if(e.key === 'ArrowLeft' && viewIdx>0){ viewIdx--; showCurrent(); }
+    else if(e.key === 'ArrowRight' && viewIdx<files.length-1){ viewIdx++; showCurrent(); }
+  });
+
+  // Tab 切换时自动加载
+  document.querySelector('button[data-tab="album"]').addEventListener('click', () => {
+    if(!grid._cachedCount && grid._cachedCount !== 0) { list(); return; }
+    if(grid._cachedCount === 0 && !files.length) list();
+  });
+
+  return { list };
+})();
+
+// 首次进站时若 hash 锚点不是 album/reading/music/mine，悄悄 list 一次
+if(location.hash === '#album'){
+  setTimeout(() => { ALBUM.list(); history.replaceState(null,'', location.pathname); }, 100);
+}
+</script>
+</body>
 </body>
 </html>
