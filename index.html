@@ -381,7 +381,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 .album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:6px;padding:10px 10px 12px}
 /* 相册照片固定九宫格（3 列）；#album-photos 仅相册 tab 使用，不影响电台 tab 的 .album-grid */
 #album-photos{display:block;columns:3;column-gap:8px;padding:10px 10px 12px}
-.album-grid:empty::before{content:"还没有照片或视频。点右上「上传」按钮，手机端点右下角 📷 悬浮按钮，即可挑选本地图片／短视频，或直接拍照上传。";display:block;grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:60px 10px;line-height:1.6}
+.album-grid:empty::before{content:"还没有照片或视频。点上方「📤 上传照片/视频」按钮，或手机端点右下角 📷 悬浮按钮拍照／选图。";column-span:all;-webkit-column-span:all;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7}
 .album-cell{position:relative;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1);break-inside:avoid;margin-bottom:8px}
 .album-cell img,.album-cell video{width:100%;height:auto;display:block;background:#111}
 .album-cell .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;backdrop-filter:blur(2px)}
@@ -3280,11 +3280,8 @@ const ALBUM = (function(){
   stage.addEventListener('pointerup', (e)=>{ if(e.pointerType==='mouse') _up(e.clientX, e.clientY); });
   stage.addEventListener('pointercancel', ()=>{ _drag=false; _sx=_sy=null; });
 
-  // Tab 切换时自动加载
-  document.querySelector('button[data-tab="album"]').addEventListener('click', () => {
-    if(!grid._cachedCount && grid._cachedCount !== 0) { list(); return; }
-    if(grid._cachedCount === 0 && !files.length) list();
-  });
+  // 每次打开相册 tab 都重新拉取，保证新上传的照片立刻可见
+  document.querySelector('button[data-tab="album"]').addEventListener('click', () => { list(); });
 
   return { list };
 })();
