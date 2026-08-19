@@ -379,7 +379,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 .album-count{font-size:12px;color:var(--muted);padding:10px 14px 0}
 .album-hint{font-size:12px;color:var(--muted);padding:6px 14px 0;line-height:1.5}
 .album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:6px;padding:10px 10px 12px}
-.album-grid:empty::before{content:"还没有照片或视频。点上方「上传」按钮，挑选几张本地图片／短视频就好。";display:block;grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:60px 10px}
+.album-grid:empty::before{content:"还没有照片或视频。点右上「上传」按钮，手机端点右下角 📷 悬浮按钮，即可挑选本地图片／短视频，或直接拍照上传。";display:block;grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:60px 10px;line-height:1.6}
 .album-cell{position:relative;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .album-cell img,.album-cell video{width:100%;height:100%;object-fit:cover;display:block;background:#111}
 .album-cell .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;backdrop-filter:blur(2px)}
@@ -391,6 +391,17 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 .album-cell.uploading{opacity:.7;pointer-events:none}
 .album-cell.uploading::after{content:"上传中…";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px}
 .album-cell.fail::after{content:"❌ 失败";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(192,40,40,.85);padding:4px 10px;border-radius:4px;font-size:12px}
+
+/* 手机端悬浮上传按钮：仅相册 tab 且窄屏显示 */
+.album-fab{display:none}
+@media (max-width:768px){
+  .tab-panel.active .album-fab{display:flex;align-items:center;justify-content:center;
+    position:fixed;right:16px;bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:80;
+    width:56px;height:56px;border-radius:50%;border:0;cursor:pointer;
+    background:var(--accent);color:#fff;font-size:26px;line-height:1;
+    box-shadow:0 6px 18px rgba(0,0,0,.28);-webkit-tap-highlight-color:transparent}
+  .tab-panel.active .album-fab:active{transform:scale(.94)}
+}
 
 /* 全屏查看器 */
 #album-viewer{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:1000;display:none;flex-direction:column}
@@ -647,6 +658,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     <button class="nav next" id="av-next" aria-label="下一张">›</button>
     <div class="counter" id="av-counter">0 / 0</div>
   </div>
+  <button id="album-fab" class="album-fab" type="button" title="上传照片/视频" aria-label="上传照片或视频">📷</button>
 </section>
 
 <section id="tab-mine" class="tab-panel">
@@ -763,7 +775,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 /* === 三栏 Tab + 账号 + 音色仓库（听我读） === */
 (function(){
   var tabs=document.querySelectorAll('#main-tabs .tab-btn');
-  var panels={reading:document.getElementById('tab-reading'),music:document.getElementById('tab-music'),mine:document.getElementById('tab-mine')};
+  var panels={reading:document.getElementById('tab-reading'),music:document.getElementById('tab-music'),album:document.getElementById('tab-album'),mine:document.getElementById('tab-mine')};
   function showTab(name){
     tabs.forEach(function(b){b.classList.toggle('active',b.dataset.tab===name);});
     Object.keys(panels).forEach(function(k){if(panels[k])panels[k].classList.toggle('active',k===name);});
@@ -3133,6 +3145,10 @@ const ALBUM = (function(){
     }
     setStatus('完成：成功 '+ok+'，失败 '+fail);
   });
+
+  // 手机端悬浮按钮复用同一文件选择器（点击即唤起系统相机/相册）
+  const fab = document.getElementById('album-fab');
+  if(fab) fab.addEventListener('click', () => { try{ fileInput.click(); }catch(e){} });
 
   function createCell(f, idx){
     const cell = document.createElement('div');
