@@ -556,17 +556,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 
 <section id="tab-mine" class="tab-panel">
   <div class="mine-wrap">
-    <div id="mine-login" class="card-box">
-      <h2>👤 登录</h2>
-      <div class="vrow"><input id="login-user" class="inp" placeholder="用户名" style="flex:1"></div>
-      <div class="vrow"><input id="login-pass" class="inp" type="password" placeholder="密码" style="flex:1"></div>
-      <div class="vrow"><button id="login-btn" class="btn">登录</button><span id="login-msg" class="muted"></span></div>
-    </div>
-    <div id="mine-dash" class="hidden">
-      <div class="card-box" style="display:flex;justify-content:space-between;align-items:center">
-        <div>已登录：<b id="mine-user"></b></div>
-        <button id="logout-btn" class="btn ghost">退出登录</button>
-      </div>
+        <div id="mine-dash" class="hidden">
       <div class="card-box">
         <h3>🎙 我的音色仓库</h3>
         <p class="muted">上传参考音并命名，朗读「听我读」时即可使用对应音色；可设其中一个为默认。</p>
@@ -688,29 +678,13 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   tabs.forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab);});});
   try{var t=localStorage.getItem('tb_tab');if(t&&panels[t])showTab(t);}catch(e){}
 
-  var loginBox=document.getElementById('mine-login');
   var dash=document.getElementById('mine-dash');
   function esc(s){return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  // 已取消账号登录：直接展示仪表盘 + 加载音色仓库（所有访客共享）
   async function refreshMine(){
-    try{
-      var r=await fetch('/api/me');var j=await r.json();
-      if(j.authed){loginBox.classList.add('hidden');dash.classList.remove('hidden');document.getElementById('mine-user').textContent=j.user||'';await loadVoices();}
-      else{loginBox.classList.remove('hidden');dash.classList.add('hidden');}
-    }catch(e){loginBox.classList.remove('hidden');dash.classList.add('hidden');}
+    dash.classList.remove('hidden');
+    await loadVoices();
   }
-  document.getElementById('login-btn').addEventListener('click',async function(){
-    var u=document.getElementById('login-user').value.trim();
-    var p=document.getElementById('login-pass').value;
-    var msg=document.getElementById('login-msg');msg.textContent='登录中…';
-    try{
-      var r=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({user:u,pass:p})});
-      var j=await r.json();
-      if(r.ok&&j.ok){msg.textContent='';await refreshMine();}else msg.textContent=j.error||'登录失败';
-    }catch(e){msg.textContent='网络错误';}
-  });
-  document.getElementById('logout-btn').addEventListener('click',async function(){
-    await fetch('/api/logout',{method:'POST'});refreshMine();
-  });
 
   async function loadVoices(){
     var list=document.getElementById('voice-list');list.innerHTML='加载中…';
