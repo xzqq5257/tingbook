@@ -269,6 +269,9 @@
 .rv-pinfo{ font-size:12px; opacity:.6; }
 .rv-act{ background:var(--accent); color:#fff; border:none; border-radius:18px; padding:7px 16px; font-size:13px; cursor:pointer; }
 .reader-view[data-theme="night"] .rv-act{ background:var(--nc); }
+.rv-navbtn{ border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; border-radius:16px; padding:5px 11px; font-size:12px; cursor:pointer; white-space:nowrap; }
+.rv-navbtn:disabled{ opacity:.28; cursor:default; }
+.reader-view[data-theme="night"] .rv-navbtn{ border-color:rgba(255,255,255,.25); }
 .rv-status{ flex:1; text-align:right; margin-right:10px; font-size:12px; color:var(--muted); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .rv-panel{ display:none; padding:14px 16px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid rgba(128,128,128,.2); background:rgba(0,0,0,.04); }
 .reader-view[data-theme="night"] .rv-panel{ background:rgba(255,255,255,.04); }
@@ -727,6 +730,8 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     <button class="rv-z" id="rv-next" aria-label="下一页"></button>
   </div>
   <div class="rv-bottom">
+    <button id="rv-prevbook" class="rv-navbtn" title="上一篇">‹ 上篇</button>
+    <button id="rv-nextbook" class="rv-navbtn" title="下一篇">下篇 ›</button>
     <span class="rv-pinfo" id="rv-pinfo"></span>
     <span id="rv-status" class="rv-status"></span>
     <button id="rv-listen-full" class="rv-act">📖 整段</button>
@@ -2376,6 +2381,8 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
 
   // ---- 全屏文本阅读器（微信读书风，单一阅读体验，听书内嵌）----
   var rvBookId=null, rvBookTitle='', rvBookAudio='', rvPars=[], rvSents=[], rvSentStart=[], rvPages=[], rvPageOfPara=[], rvIdx=0, rvFs=17, rvTheme='day';
+  // 阅读器「上一篇/下一篇」：当前阅读会话所在的书架书列表与位置
+  var rvBookList=null, rvBookPos=-1;
   var rvIsPoetry=false;
   var RV_POETRY={ 'bj-白头吟':1,'bj-涉江':1,'bj-沁园春雪':1,'bj-长恨歌':1,'bj-琵琶行':1,'bj-蜀道难':1,'bj-木兰诗':1,'bj-春江花月夜':1,'bj-念奴娇赤壁怀古':1,'bj-水调歌头':1,'bj-声声慢':1,'bj-将进酒':1,'bj-侠客行':1,'bj-葬花吟':1,'bj-红楼梦引子':1,'bj-沁园春长沙':1,'mo-yu-er':1,'bj-错误_郑愁予':1,'bj-离骚':1 };
   var RV_FS_K='tingbook_rv_fs', RV_TH_K='tingbook_rv_theme', RV_PR_K='tingbook_rv_prog_';
@@ -2646,6 +2653,11 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
   function openReader(id, title, autoListen){
     rvBookId=id; rvBookTitle=title; rvCache={}; rvInflight={};
     rvIsPoetry=!!RV_POETRY[id];
+    // 定位当前书在书架列表中的位置，供「上一篇/下一篇」使用
+    var idx=loadBookIndex();
+    rvBookPos = idx.findIndex(function(x){ return x.id===id; });
+    rvBookList = rvBookPos>=0 ? idx : null;
+    rvUpdateBookNav();
     _idb.get('book:'+id).then(function(book){
       var text=(book&&book.text)||'';
       rvBookAudio=(book&&(book.audio||book.file))||'';
@@ -2669,6 +2681,19 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     });
   }
   function hideReader(){ rvStopRead(); var rv=document.getElementById('reader-view'); if(rv) rv.classList.remove('show'); }
+  // 阅读器「上一篇/下一篇」：在书架书列表中切换上一本/下一本
+  function rvStepBook(dir){
+    if(!rvBookList || rvBookPos<0) return;
+    var j = rvBookPos + dir;
+    if(j<0 || j>=rvBookList.length) return;
+    var nb = rvBookList[j];
+    openReader(nb.id, nb.title);   // 不自动朗读，保留各自阅读进度
+  }
+  function rvUpdateBookNav(){
+    var pb=document.getElementById('rv-prevbook'), nb=document.getElementById('rv-nextbook');
+    if(pb) pb.disabled = !rvBookList || rvBookPos<=0;
+    if(nb) nb.disabled = !rvBookList || rvBookPos<0 || rvBookPos>=rvBookList.length-1;
+  }
 
   // 目录：扫描标题段落，列出并支持跳转到对应页
   function rvBuildToc(){
@@ -2944,6 +2969,8 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
     }); }
     byId('rv-next').onclick=function(){ if(rvIdx<rvPages.length-1){ rvIdx++; rvRender(); } };
     byId('rv-prev').onclick=function(){ if(rvIdx>0){ rvIdx--; rvRender(); } };
+    byId('rv-prevbook').onclick=function(){ rvStepBook(-1); };
+    byId('rv-nextbook').onclick=function(){ rvStepBook(1); };
     byId('rv-fu').onclick=function(){ rvFs=Math.min(32,rvFs+1); byId('rv-fs').textContent=rvFs; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
     byId('rv-fd').onclick=function(){ rvFs=Math.max(12,rvFs-1); byId('rv-fs').textContent=rvFs; try{localStorage.setItem(RV_FS_K,rvFs);}catch(e){} rvBuild(); rvRender(); };
     byId('rv-lhu').onclick=function(){ rvLH=Math.min(2.8, Math.round((rvLH+0.1)*10)/10); byId('rv-lh').textContent=rvLH.toFixed(1); try{localStorage.setItem(RV_LH_K,rvLH);}catch(e){} rvBuild(); rvRender(); };
