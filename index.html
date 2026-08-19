@@ -387,11 +387,11 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 .album-cell .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;backdrop-filter:blur(2px)}
 .album-cell .badge.video{background:rgba(184,144,47,.85)}
 .album-cell .badge.photo{background:rgba(58,143,111,.85)}
-.album-cell .name{position:absolute;bottom:0;left:0;right:0;font-size:10px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));padding:14px 6px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+.album-cell .name{position:absolute;bottom:6px;left:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);padding:2px 6px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;pointer-events:none}
 .album-cell .del{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;backdrop-filter:blur(2px)}
 .album-cell:hover .del{display:flex}
 .album-cell.uploading{opacity:.7;pointer-events:none}
-.album-cell.uploading::after{content:"上传中…";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px}
+.album-cell.uploading::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px}
 .album-cell.fail::after{content:"❌ 失败";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(192,40,40,.85);padding:4px 10px;border-radius:4px;font-size:12px}
 
 /* 手机端悬浮上传按钮：仅相册 tab 且窄屏显示 */
@@ -3030,12 +3030,11 @@ const ALBUM = (function(){
       const cell = document.createElement('div');
       cell.className = 'album-cell';
       cell.dataset.idx = i;
-      const typeLabel = isVid(f.name) ? '<span class="badge video">🎬 视频</span>' : '<span class="badge photo">📷 照片</span>';
+      const typeLabel = isVid(f.name) ? '<span class="badge video">▶</span>' : '';
       const thumbSrc = isVid(f.name) ? '' : f.rawUrl;
       const vidFirstFrame = isVid(f.name) ? ('<video src="'+escHtml(f.rawUrl)+'#t=0.5" muted preload="metadata" playsinline></video>') : ('<img loading="lazy" src="'+escHtml(thumbSrc)+'" alt="">');
       cell.innerHTML = typeLabel + vidFirstFrame +
-        '<button class="del" title="删除">×</button>' +
-        '<div class="name">'+escHtml(f.name)+'</div>';
+        '<button class="del" title="删除">×</button>';
       cell.querySelector('img,video').addEventListener('click', () => openViewer(i));
       cell.addEventListener('click', (e) => { if(!e.target.classList.contains('del')) openViewer(i); });
       cell.querySelector('.del').addEventListener('click', (e) => {
@@ -3110,7 +3109,7 @@ const ALBUM = (function(){
     picked.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/')).forEach(() => {
       const c = document.createElement('div');
       c.className = 'album-cell uploading';
-      c.innerHTML = '<span class="badge">…</span><div class="name">上传中</div>';
+      c.innerHTML = '<div class="name">上传中</div>';
       grid.prepend(c);
       placeholders.push(c);
     });
@@ -3156,13 +3155,13 @@ const ALBUM = (function(){
     const cell = document.createElement('div');
     cell.className = 'album-cell';
     cell.dataset.idx = idx;
-    const typeLabel = isVid(f.name) ? '<span class="badge video">🎬 视频</span>' : '<span class="badge photo">📷 照片</span>';
+    const typeLabel = isVid(f.name) ? '<span class="badge video">▶</span>' : '';
     if(isVid(f.name)){
       cell.innerHTML = typeLabel + '<video src="'+escHtml(f.rawUrl)+'#t=0.5" muted preload="metadata" playsinline></video>' +
-        '<button class="del" title="删除">×</button><div class="name">'+escHtml(f.name)+'</div>';
+        '<button class="del" title="删除">×</button>';
     } else {
       cell.innerHTML = typeLabel + '<img loading="lazy" src="'+escHtml(f.rawUrl)+'" alt="">' +
-        '<button class="del" title="删除">×</button><div class="name">'+escHtml(f.name)+'</div>';
+        '<button class="del" title="删除">×</button>';
     }
     cell.addEventListener('click', (e) => {
       if(e.target.classList.contains('del')) return;
