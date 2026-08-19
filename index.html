@@ -413,16 +413,22 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 #album-viewer .topbar .actions{display:flex;gap:8px}
 #album-viewer .topbar button{background:rgba(255,255,255,.15);color:#fff;border:0;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;backdrop-filter:blur(4px)}
 #album-viewer .topbar button:hover{background:rgba(255,255,255,.28)}
-#album-viewer .stage{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
-#album-viewer .stage img{max-width:100%;max-height:100%;object-fit:contain;transition:transform .2s ease;cursor:zoom-in;user-select:none;-webkit-user-drag:none}
-#album-viewer .stage img.zoomed{cursor:zoom-out;transform:scale(2)}
-#album-viewer .stage video{max-width:100%;max-height:100%;outline:none}
-#album-viewer .nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);color:#fff;border:0;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);user-select:none}
+#album-viewer .stage{flex:1;display:block;position:relative;overflow:hidden;touch-action:pan-y}
+#album-viewer .av-media{position:absolute;inset:0;margin:auto;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;background:#000;user-select:none;-webkit-user-drag:none;transition:transform .34s cubic-bezier(.22,.61,.36,1),opacity .3s ease;will-change:transform,opacity}
+#album-viewer .av-media.from-right{transform:translateX(100%);opacity:0}
+#album-viewer .av-media.from-left{transform:translateX(-100%);opacity:0}
+#album-viewer .av-media.to-left{transform:translateX(-100%);opacity:0}
+#album-viewer .av-media.to-right{transform:translateX(100%);opacity:0}
+#album-viewer .av-media video{width:100%;height:100%;object-fit:contain;outline:none}
+#album-viewer .nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);color:#fff;border:0;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);user-select:none;z-index:5}
 #album-viewer .nav:hover{background:rgba(255,255,255,.28)}
 #album-viewer .nav.prev{left:14px}
 #album-viewer .nav.next{right:14px}
 #album-viewer .nav:disabled{opacity:.25;cursor:default}
 #album-viewer .counter{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.4);padding:4px 12px;border-radius:14px;z-index:2}
+#album-viewer .av-hint{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.5);padding:6px 14px;border-radius:14px;opacity:0;transition:opacity .4s ease;pointer-events:none;z-index:4}
+#album-viewer .av-hint.show{opacity:1}
+@media (max-width:600px){#album-viewer .nav{width:40px;height:40px;font-size:22px}.nav.prev{left:6px}.nav.next{right:6px}}
 @media (max-width:900px){#album-photos{columns:2}}@media (max-width:520px){#album-photos{columns:2;column-gap:5px}.album-cell{margin-bottom:5px;border-radius:6px}}
 </style>
 </head>
@@ -649,7 +655,6 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
 
   <div id="album-viewer" aria-hidden="true">
     <div class="topbar">
-      <span><b id="av-name">文件</b><span id="av-meta"></span></span>
       <div class="actions">
         <button id="av-download" title="下载">⤓ 下载</button>
         <button id="av-close" title="关闭">✕ 关闭</button>
@@ -659,6 +664,7 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     <div class="stage" id="av-stage"></div>
     <button class="nav next" id="av-next" aria-label="下一张">›</button>
     <div class="counter" id="av-counter">0 / 0</div>
+    <div class="av-hint" id="av-hint">← 滑动或点击两侧翻页 →</div>
   </div>
   <button id="album-fab" class="album-fab" type="button" title="上传照片/视频" aria-label="上传照片或视频">📷</button>
 </section>
@@ -2991,8 +2997,6 @@ const ALBUM = (function(){
   const status = document.getElementById('album-status');
   const viewer = document.getElementById('album-viewer');
   const stage = document.getElementById('av-stage');
-  const avName = document.getElementById('av-name');
-  const avMeta = document.getElementById('av-meta');
   const avCounter = document.getElementById('av-counter');
   let files = [];        // 内存中所有文件（{name,size,rawUrl,htmlUrl,type}）
   let viewIdx = -1;      // 当前查看的索引
@@ -3190,26 +3194,39 @@ const ALBUM = (function(){
     }
   }
 
-  // 全屏查看器
+  // 全屏画廊查看器（书籍翻页 / 滑动翻页）
+  function buildMedia(f){
+    let el;
+    if(isVid(f.name)){
+      el = document.createElement('video');
+      el.src = f.rawUrl; el.controls = true; el.autoplay = true; el.playsInline = true;
+      el.setAttribute('playsinline',''); el.setAttribute('webkit-playsinline','');
+    } else {
+      el = document.createElement('img');
+      el.src = f.rawUrl; el.alt = f.name;
+    }
+    el.className = 'av-media';
+    return el;
+  }
   function openViewer(idx){
     if(!files.length) return;
     viewIdx = idx;
-    showCurrent();
+    showCurrent(null);
     viewer.classList.add('show');
     viewer.setAttribute('aria-hidden','false');
+    showHint();
   }
   function closeViewer(){
     viewer.classList.remove('show');
     viewer.setAttribute('aria-hidden','true');
     stage.innerHTML = '';
-    viewIdx = -1;
-    isZoomed = false;
+    viewIdx = -1; isZoomed = false;
   }
-  function showCurrent(){
+  function goPrev(){ if(viewIdx > 0){ viewIdx--; showCurrent('prev'); } }
+  function goNext(){ if(viewIdx < files.length-1){ viewIdx++; showCurrent('next'); } }
+  function showCurrent(dir){
     if(viewIdx < 0 || !files[viewIdx]) return;
     const f = files[viewIdx];
-    avName.textContent = f.name;
-    avMeta.textContent = ' · ' + fmtSize(f.size);
     const total = files.length;
     avCounter.textContent = (viewIdx+1) + ' / ' + total;
     document.getElementById('av-prev').disabled = (viewIdx<=0);
@@ -3219,32 +3236,48 @@ const ALBUM = (function(){
       a.href = f.rawUrl; a.download = f.name; a.target = '_blank';
       document.body.appendChild(a); a.click(); a.remove();
     };
-    stage.innerHTML = '';
-    if(isVid(f.name)){
-      const v = document.createElement('video');
-      v.src = f.rawUrl; v.controls = true; v.autoplay = true; v.playsInline = true;
-      v.style.maxHeight = '90vh'; v.style.maxWidth = '100%';
-      stage.appendChild(v);
-    } else {
-      const img = document.createElement('img');
-      img.src = f.rawUrl; img.alt = f.name;
-      img.addEventListener('click', () => {
-        isZoomed = !isZoomed;
-        img.classList.toggle('zoomed', isZoomed);
-      });
-      stage.appendChild(img);
+    const incoming = buildMedia(f);
+    incoming.classList.add('incoming');
+    if(dir==='next') incoming.classList.add('from-right');
+    else if(dir==='prev') incoming.classList.add('from-left');
+    stage.appendChild(incoming);
+    const outgoing = stage.querySelector('.av-media:not(.incoming)');
+    void incoming.offsetWidth;
+    incoming.classList.remove('from-right','from-left','incoming');
+    if(outgoing){
+      outgoing.classList.add(dir==='next' ? 'to-left' : 'to-right');
+      const dead = outgoing;
+      setTimeout(() => { if(dead.parentNode) dead.parentNode.removeChild(dead); }, 380);
     }
   }
+  function showHint(){
+    const h = document.getElementById('av-hint'); if(!h) return;
+    h.classList.add('show'); clearTimeout(h._t);
+    h._t = setTimeout(() => h.classList.remove('show'), 2400);
+  }
   document.getElementById('av-close').addEventListener('click', closeViewer);
-  document.getElementById('av-prev').addEventListener('click', () => { if(viewIdx>0){ viewIdx--; showCurrent(); } });
-  document.getElementById('av-next').addEventListener('click', () => { if(viewIdx<files.length-1){ viewIdx++; showCurrent(); } });
+  document.getElementById('av-prev').addEventListener('click', goPrev);
+  document.getElementById('av-next').addEventListener('click', goNext);
   viewer.addEventListener('click', (e) => { if(e.target === viewer) closeViewer(); });
   document.addEventListener('keydown', (e) => {
     if(!viewer.classList.contains('show')) return;
     if(e.key === 'Escape') closeViewer();
-    else if(e.key === 'ArrowLeft' && viewIdx>0){ viewIdx--; showCurrent(); }
-    else if(e.key === 'ArrowRight' && viewIdx<files.length-1){ viewIdx++; showCurrent(); }
+    else if(e.key === 'ArrowLeft') goPrev();
+    else if(e.key === 'ArrowRight') goNext();
   });
+  // 滑动翻页：触摸 + 鼠标拖拽
+  let _sx=null, _sy=null, _drag=false;
+  function _down(x,y){ _sx=x; _sy=y; _drag=true; }
+  function _up(x,y){
+    if(!_drag || _sx===null) return;
+    const dx=x-_sx, dy=y-_sy; _drag=false; _sx=_sy=null;
+    if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)){ dx<0 ? goNext() : goPrev(); }
+  }
+  stage.addEventListener('touchstart', (e)=>{ if(e.touches.length===1) _down(e.touches[0].clientX, e.touches[0].clientY); }, {passive:true});
+  stage.addEventListener('touchend', (e)=>{ if(e.changedTouches.length) _up(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }, {passive:true});
+  stage.addEventListener('pointerdown', (e)=>{ if(e.pointerType==='mouse') _down(e.clientX, e.clientY); });
+  stage.addEventListener('pointerup', (e)=>{ if(e.pointerType==='mouse') _up(e.clientX, e.clientY); });
+  stage.addEventListener('pointercancel', ()=>{ _drag=false; _sx=_sy=null; });
 
   // Tab 切换时自动加载
   document.querySelector('button[data-tab="album"]').addEventListener('click', () => {
