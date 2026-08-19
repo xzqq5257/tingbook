@@ -1113,14 +1113,15 @@ function onTrackEnded(){
   if(playingAll && plIndex<playlist.length-1){ playItem(plIndex+1, 'start'); return; }
   clearProgress(); clearPos(currentPlay.file||currentPlay.url);
   resumeBar.dataset.prog=''; showResume(null);
-  if(playingAll){
-    playingAll=false;
-    document.getElementById('play-all').style.display='';
-    document.getElementById('stop-all').style.display='none';
-    document.getElementById('playing-all-status').textContent='已全部播放完毕 ✓';
-    hideNp();
-  }
-  document.querySelectorAll('#list .card.playing').forEach(c=>c.classList.remove('playing'));
+  // 网页不关闭就一直播放：整本列表播完后循环回第 1 篇继续，不自动停止（用户可手动暂停/停止）
+  playlist = (playingAll && playlist.length) ? playlist : BOOKS.slice();
+  playingAll = true;
+  document.getElementById('play-all').style.display='none';
+  document.getElementById('stop-all').style.display='';
+  document.getElementById('playing-all-status').textContent='♾️ 循环播放中（列表播完自动回到开头）';
+  plIndex = 0;
+  playItem(0, 'start');
+  return;
 }
 audio.addEventListener('ended', onTrackEnded);
 // ===== 锁屏/后台连续播放支持：Media Session API =====
