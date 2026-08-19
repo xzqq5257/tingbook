@@ -3222,15 +3222,16 @@ const ALBUM = (function(){
     stage.innerHTML = '';
     viewIdx = -1; isZoomed = false;
   }
-  function goPrev(){ if(viewIdx > 0){ viewIdx--; showCurrent('prev'); } }
-  function goNext(){ if(viewIdx < files.length-1){ viewIdx++; showCurrent('next'); } }
+  function goPrev(){ if(files.length>1){ viewIdx = (viewIdx - 1 + files.length) % files.length; showCurrent('prev'); } }
+  function goNext(){ if(files.length>1){ viewIdx = (viewIdx + 1) % files.length; showCurrent('next'); } }
   function showCurrent(dir){
     if(viewIdx < 0 || !files[viewIdx]) return;
     const f = files[viewIdx];
     const total = files.length;
     avCounter.textContent = (viewIdx+1) + ' / ' + total;
-    document.getElementById('av-prev').disabled = (viewIdx<=0);
-    document.getElementById('av-next').disabled = (viewIdx>=total-1);
+    const single = (total<=1);
+    document.getElementById('av-prev').disabled = single;
+    document.getElementById('av-next').disabled = single;
     document.getElementById('av-download').onclick = () => {
       const a = document.createElement('a');
       a.href = f.rawUrl; a.download = f.name; a.target = '_blank';
