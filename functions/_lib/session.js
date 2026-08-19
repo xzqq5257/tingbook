@@ -35,22 +35,19 @@ function clearCookieHeader() {
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
+// 已取消账号登录（2026-08-19）：所有匿名访客也视为"管理员"，音色仓库全站共享。
+// 仅保留 cookie 检查以兼容历史会话；不再签发新会话。
 export async function readSession(env, request) {
   const kv = env.TINGBOOK_KV;
-  if (!kv) return null;
   const token = parseCookies(request)[COOKIE];
-  if (!token) return null;
-  try {
-    const raw = await kv.get(`session:${token}`, "json");
-    if (!raw) return null;
-    if (raw.expires && raw.expires < Date.now()) {
-      await kv.delete(`session:${token}`);
-      return null;
-    }
-    return raw; // { user, expires }
-  } catch {
-    return null;
+  if (kv && token) {
+    try {
+      const raw = await kv.get(`session:${token}`, "json");
+      if (raw && (!raw.expires || raw.expires >= Date.now())) return raw;
+    } catch {}
   }
+  // 合成会话（不落 KV）
+  return { user: "管理员", expires: 0 };
 }
 
 export async function createSession(env, user) {
