@@ -476,9 +476,19 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     }
     document.documentElement.style.overflow="hidden"; if(document.body) document.body.style.overflow="hidden";
   }
+  function logLogin(){
+    try{
+      fetch('/api/login-log', {
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body: JSON.stringify({ k: SITE_PASSWORD }),
+        keepalive: true
+      }).catch(function(){});
+    }catch(e){}
+  }
   function tryUnlock(){
     var i=document.getElementById("gatePwd"); var v=i?i.value:"";
-    if(v===SITE_PASSWORD){ try{sessionStorage.setItem(KEY, String(Date.now()));}catch(e){} reveal(); }
+    if(v===SITE_PASSWORD){ try{sessionStorage.setItem(KEY, String(Date.now()));}catch(e){} logLogin(); reveal(); }
     else { showErr("密码错误，请重试"); if(i){ i.value=""; i.focus(); } }
   }
   function bind(){
