@@ -2627,17 +2627,26 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
         var si=-1, lst=rvSentByPara[ln.pi]||[], o;
         for(var q=0;q<lst.length;q++){ o=rvSentParaOff[lst[q]]; if(o.a<=gpos && gpos<o.b){ si=lst[q]; break; } }
         var isHi = (si===hiSent && si>=0);
-        var isCur = (rvCurChar>=0 && si===hiSent && gpos===rvCurChar);
+        var inCurSent = (rvCurChar>=0 && si===hiSent);
+        var isCur = inCurSent && gpos===rvCurChar;
+        var isRead = inCurSent && gpos<rvCurChar;
+        var cw = ctx.measureText(ch).width;
         if(isHi){
-          var cw=ctx.measureText(ch).width;
           ctx.fillStyle=col.hi; ctx.fillRect(cx, baseline-ln.lineH*0.74, cw+1, ln.lineH*0.74);
         }
-        ctx.fillStyle = (isCur ? col.accent : (isHi ? col.fg : (bold? col.accent : col.fg)));
+        if(isCur){
+          // 卡拉OK式光标：当前字用强调色实心块 + 反色字，醒目跟读
+          ctx.fillStyle=col.accent; ctx.fillRect(cx-0.5, baseline-ln.lineH*0.72, cw+2, ln.lineH*0.74);
+          ctx.fillStyle=col.bg;
+        } else if(isRead){
+          ctx.fillStyle=col.accent;       // 已读字：强调色
+        } else {
+          ctx.fillStyle = (bold? col.accent : col.fg);
+        }
         ctx.fillText(ch, cx, baseline);
         if(isCur){
-          var cw2=ctx.measureText(ch).width;
-          ctx.strokeStyle=col.accent; ctx.lineWidth=Math.max(2, Math.round(rvFs*0.09));
-          ctx.beginPath(); ctx.moveTo(cx, baseline+rvFs*0.18); ctx.lineTo(cx+cw2, baseline+rvFs*0.18); ctx.stroke();
+          ctx.strokeStyle=col.accent; ctx.lineWidth=Math.max(2, Math.round(rvFs*0.12));
+          ctx.beginPath(); ctx.moveTo(cx-0.5, baseline+rvFs*0.16); ctx.lineTo(cx+cw+0.5, baseline+rvFs*0.16); ctx.stroke();
         }
         cx += ctx.measureText(ch).width;
       }
@@ -2759,7 +2768,13 @@ const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.
                     var el = ctx.currentTime - st;
                     var p = Math.min(1, Math.max(0, el/du0));
                     var gi = o0.a + Math.min(sl0-1, Math.floor(p*sl0));
-                    if(gi!==rvCurChar){ rvCurChar=gi; if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas(); }
+                    if(gi!==rvCurChar){
+                      rvCurChar=gi;
+                      // 跨页自动翻页，保证当前字始终可见（光标跟读不丢字）
+                      var pg = rvCharPage(rvSents[hiSent].p, gi);
+                      if(pg>=0 && pg!==rvIdx){ rvIdx=pg; rvRender(); }
+                      else if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas();
+                    }
                   }
                   requestAnimationFrame(tick);
                 })();
