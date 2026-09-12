@@ -1278,12 +1278,31 @@
 })();
 
 // ---------------- 自定义背景（仅本机持久化，不上传服务器） ----------------
+// 默认态：每 5 分钟自动从相册随机取一张照片做全屏背景，50% 透明度，双图层交叉淡入淡出。
+// 用户一旦主动选预设 / 上传图片，轮换立即停止（尊重用户选择）；点「恢复默认」后重新开启轮换。
 (function(){
   var bgLayer=document.getElementById('bg-layer');
   if(!bgLayer) return;
   var BGK='tingbook_bg_v1';
-  var BUILTIN_BG='assets/bg-girl.webp'; // 默认古风背景图（WebP 143KB，原 JPG 276KB）
-  try{ if(!localStorage.getItem(BGK)){ applyBg(BUILTIN_BG); } }catch(e){ applyBg(BUILTIN_BG); }
+  var BUILTIN_BG='assets/bg-girl.webp';  // 内置兜底底图（相册取不到 / 首屏未就绪时用）
+  var IMG_OPACITY='.5';                  // 图片背景统一 50% 透明
+  var ROTATE_MS=5*60*1000;               // 轮换间隔：5 分钟
+  var LIST_TTL=30*60*1000;               // 相册列表缓存 30 分钟（避免每轮都打 GitHub API）
+  var FIRST_DELAY=2000;                  // 首屏稳定后尽快给第一张
+
+  // 第二张照片图层：与 #bg-layer 交替承载照片。
+  // background-image 本身无法做 CSS 过渡，只有硬切会闪，所以用两个图层交叉淡入。
+  var alt=document.createElement('div');
+  alt.id='bg-layer-alt';
+  alt.setAttribute('aria-hidden','true');
+  alt.style.cssText='position:fixed;inset:0;z-index:-2;pointer-events:none;opacity:0;'+
+    'background-size:cover;background-position:center;background-repeat:no-repeat';
+  if(bgLayer.parentNode) bgLayer.parentNode.insertBefore(alt, bgLayer.nextSibling);
+
+  var cur=bgLayer;                       // 当前承载照片的图层
+  var rotOn=false, rotTimer=null, rotLast=0, rotCur='', rotFail=0;
+  var pool=[], poolAt=0, poolReq=null;
+
   var presets=[
     {name:'暖纸', css:'linear-gradient(180deg,#f4f1ea,#efe9df)'},
     {name:'青瓷', css:'linear-gradient(160deg,#eaf3f0,#dcebe6)'},
@@ -1291,39 +1310,184 @@
     {name:'樱粉', css:'linear-gradient(160deg,#fdeef3,#f6e0e9)'},
     {name:'薄暮', css:'linear-gradient(160deg,#eef1f6,#dfe6f0)'}
   ];
-  function applyBg(val){
-    if(!val){ bgLayer.style.background=''; bgLayer.style.backgroundImage='none'; bgLayer.style.opacity='1'; try{localStorage.removeItem(BGK);}catch(e){} return; }
-    if(val.indexOf('gradient')>=0){
-      bgLayer.style.backgroundImage='none'; bgLayer.style.background=val; bgLayer.style.opacity='1';
-    } else {
-      bgLayer.style.background=''; bgLayer.style.backgroundImage='url('+val+')'; bgLayer.style.opacity='.3'; // 图片按 30% 透明叠加
-    }
-    try{localStorage.setItem(BGK,val);}catch(e){}
+
+  function resetLayers(){
+    bgLayer.style.transition='none';
+    alt.style.transition='none';
+    alt.style.background='';
+    alt.style.backgroundImage='none';
+    alt.style.opacity='0';
+    cur=bgLayer;
   }
+
+  // 无动画铺一张照片（默认态首次进入 / 恢复默认时用）
+  function paintPhoto(url){
+    resetLayers();
+    bgLayer.style.background='';
+    bgLayer.style.backgroundImage='url("'+url+'")';
+    bgLayer.style.opacity=IMG_OPACITY;
+    void bgLayer.offsetWidth;   // 强制回流，避免下一次过渡被浏览器合并掉
+  }
+
+  // 交叉淡入：新图在备用层由 0 → 50%，旧层同步 50% → 0
+  function crossFade(url){
+    var other=(cur===bgLayer)?alt:bgLayer;
+    other.style.transition='none';
+    other.style.background='';
+    other.style.backgroundImage='url("'+url+'")';
+    other.style.opacity='0';
+    void other.offsetWidth;
+    other.style.transition='opacity .9s ease';
+    cur.style.transition='opacity .9s ease';
+    other.style.opacity=IMG_OPACITY;
+    cur.style.opacity='0';
+    var from=cur;
+    cur=other;
+    setTimeout(function(){   // 收尾：淡出结束时旧层已到 0，直接清零不会产生跳变
+      if(from!==cur){ from.style.transition='none'; from.style.opacity='0'; }
+    }, 950);
+  }
+
+  function applyBg(val, persist){
+    resetLayers();
+    if(!val){
+      bgLayer.style.background='';
+      bgLayer.style.backgroundImage='none';
+      bgLayer.style.opacity='1';
+      if(persist){ try{localStorage.removeItem(BGK);}catch(e){} }
+      return;
+    }
+    if(val.indexOf('gradient')>=0){
+      bgLayer.style.backgroundImage='none';
+      bgLayer.style.background=val;
+      bgLayer.style.opacity='1';
+    }else{
+      bgLayer.style.background='';
+      bgLayer.style.backgroundImage='url("'+val+'")';
+      bgLayer.style.opacity=IMG_OPACITY;
+    }
+    if(persist){ try{localStorage.setItem(BGK,val);}catch(e){} }
+  }
+
+  // 「默认态」= 没存过，或存的正是内置兜底图（历史版本会把它落盘）
+  function isDefaultVal(v){ return !v || v===BUILTIN_BG; }
+
+  // ---------- 相册随机轮换 ----------
+  function loadPool(){
+    if(poolReq) return poolReq;
+    if(pool.length && (Date.now()-poolAt)<LIST_TTL) return Promise.resolve(pool);
+    poolReq=fetch('/api/album-list?_='+Date.now(),{cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j && j.ok && Array.isArray(j.files)){
+          pool=j.files.filter(function(f){ return f && f.isImage; })   // 只要图片，跳过视频
+                      .map(function(f){ return f.proxyUrl||f.rawUrl; }) // 走本站 CDN 代理
+                      .filter(Boolean);
+          poolAt=Date.now();
+        }
+      })
+      .catch(function(){})
+      .then(function(){ poolReq=null; return pool; });
+    return poolReq;
+  }
+
+  function rotate(){
+    if(!rotOn || document.hidden) return;
+    rotLast=Date.now();
+    loadPool().then(function(list){
+      if(!rotOn) return;
+      var srcs=(list && list.length)?list:[BUILTIN_BG];
+      var pick=srcs[Math.floor(Math.random()*srcs.length)];
+      if(srcs.length>1){                        // 尽量不连续重复同一张
+        var guard=0;
+        while(pick===rotCur && guard++<10){ pick=srcs[Math.floor(Math.random()*srcs.length)]; }
+      }
+      rotCur=pick;
+      var img=new Image();
+      var done=false;
+      var swap=function(){
+        if(done || !rotOn) return;
+        done=true; rotFail=0;
+        crossFade(pick);
+      };
+      img.onload=swap;
+      img.onerror=function(){                   // 单张坏图就跳下一张，最多重试 3 次
+        if(done) return; done=true; rotFail++;
+        if(rotFail<=3){ rotCur=''; setTimeout(rotate, 800); }
+        else { rotFail=0; }
+      };
+      img.src=pick;
+      setTimeout(swap, 6000);                   // 兜底：CDN 卡住也要显示出来
+    });
+  }
+
+  function startRotate(){
+    if(rotOn) return;
+    rotOn=true; rotLast=0;
+    rotTimer=setInterval(rotate, ROTATE_MS);
+    setTimeout(rotate, FIRST_DELAY);
+  }
+  function stopRotate(){
+    rotOn=false;
+    if(rotTimer){ clearInterval(rotTimer); rotTimer=null; }
+    rotLast=0;
+  }
+  // 后台标签页不换图（省流量）；回到前台若已超过一个周期就立刻补一张
+  document.addEventListener('visibilitychange', function(){
+    if(!rotOn || document.hidden) return;
+    if(!rotLast || (Date.now()-rotLast)>=ROTATE_MS) rotate();
+  });
+
+  var msgEl=document.getElementById('bg-msg');
+  function setMsg(t){ if(msgEl) msgEl.textContent=t; }
+
+  // ---------- 预设按钮 ----------
   var pc=document.getElementById('bg-presets');
   function markActive(val){
+    if(!pc) return;
     Array.prototype.forEach.call(pc.children, function(c){
       c.classList.toggle('active', !!val && c.dataset.val===val);
     });
   }
-  presets.forEach(function(p){
-    var b=document.createElement('button'); b.className='bg-sw'; b.type='button';
-    b.textContent=p.name; b.style.background=p.css; b.dataset.val=p.css; b.title=p.name;
-    b.onclick=function(){ applyBg(p.css); markActive(p.css); };
-    pc.appendChild(b);
-  });
+  if(pc){
+    presets.forEach(function(p){
+      var b=document.createElement('button'); b.className='bg-sw'; b.type='button';
+      b.textContent=p.name; b.style.background=p.css; b.dataset.val=p.css; b.title=p.name;
+      b.onclick=function(){ stopRotate(); applyBg(p.css,true); markActive(p.css); setMsg('已应用预设背景（自动轮换已停止）'); };
+      pc.appendChild(b);
+    });
+  }
+
+  // ---------- 上传自定义图片 ----------
   var up=document.getElementById('bg-upload');
   if(up) up.onchange=function(){
     var f=up.files&&up.files[0]; if(!f) return;
-    if(f.size>4*1024*1024){ document.getElementById('bg-msg').textContent='图片过大（>4MB），请压缩后重试'; return; }
+    if(f.size>4*1024*1024){ setMsg('图片过大（>4MB），请压缩后重试'); return; }
     var r=new FileReader();
-    r.onload=function(){ applyBg(r.result); markActive(''); document.getElementById('bg-msg').textContent='已应用自定义背景'; };
+    r.onload=function(){ stopRotate(); applyBg(r.result,true); markActive(''); setMsg('已应用自定义背景（自动轮换已停止）'); };
     r.readAsDataURL(f);
   };
+
+  // ---------- 恢复默认 = 回到「相册随机轮换」 ----------
   var rs=document.getElementById('bg-reset');
-  if(rs) rs.onclick=function(){ applyBg(''); markActive(''); document.getElementById('bg-msg').textContent='已恢复默认'; };
+  if(rs) rs.onclick=function(){
+    applyBg('', true);
+    markActive('');
+    rotCur=''; rotFail=0;
+    paintPhoto(BUILTIN_BG);    // 先铺内置底图，随后轮换会替换成相册随机张
+    startRotate();
+    setMsg('已恢复默认：每 5 分钟自动从相册随机换一张');
+  };
+
+  // ---------- 启动 ----------
   var saved='';
   try{ saved=localStorage.getItem(BGK)||''; }catch(e){}
-  if(saved){ applyBg(saved); }
+  if(isDefaultVal(saved)){
+    try{ localStorage.removeItem(BGK); }catch(e){}   // 默认态不落盘，否则下次会被当成「用户选择」
+    paintPhoto(BUILTIN_BG);
+    startRotate();
+  }else{
+    applyBg(saved,false);
+  }
   markActive(saved);
 })();
