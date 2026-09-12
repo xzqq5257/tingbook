@@ -1,0 +1,24 @@
+# Cloudflare Pages 响应头配置
+# 作用：让静态资源走长缓存（含 immutable），HTML 保持短缓存以便及时更新。
+# 注意：Pages 静态资源本身支持 Range 请求（206），此文件不做干预，
+# 但显式声明 Accept-Ranges 有助于播放器边下边播与拖动进度。
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+  Accept-Ranges: bytes
+
+/audio/*
+  Cache-Control: public, max-age=604800
+  Accept-Ranges: bytes
+
+/functions/*
+  Cache-Control: no-store
+
+/api/*
+  Cache-Control: no-store
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate

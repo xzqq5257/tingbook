@@ -1,0 +1,70 @@
+#siteGate{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1b1f2a,#2a2f3e);font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif}
+#siteGate .box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:32px 28px;width:min(86vw,320px);text-align:center;color:#eee}
+#siteGate h1{font-size:18px;margin:0 0 6px;font-weight:600}
+#siteGate p{font-size:13px;opacity:.7;margin:0 0 18px}
+#siteGate input{width:100%;box-sizing:border-box;padding:11px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:#fff;font-size:15px;outline:none;margin-bottom:12px}
+#siteGate button{width:100%;padding:11px;border:0;border-radius:9px;background:#e23b3b;color:#fff;font-size:15px;cursor:pointer}
+#siteGate button:active{transform:translateY(1px)}
+#siteGate .err{color:#ff9a9a;font-size:12px;min-height:16px;margin-top:8px}
+
+/* ============ 相册 Tab ============ */
+.album-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 14px 8px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:10}
+.album-toolbar label{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+.album-toolbar label input[type=file]{display:none}
+.album-toolbar .ghost-btn{background:transparent;color:var(--muted);border:1px solid var(--line);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+.album-toolbar .meta{font-size:12px;color:var(--muted);flex:1;text-align:right}
+.album-count{font-size:12px;color:var(--muted);padding:10px 14px 0}
+.album-hint{font-size:12px;color:var(--muted);padding:6px 14px 0;line-height:1.5}
+.album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:6px;padding:10px 10px 12px}
+/* 相册照片固定九宫格（3 列）；#album-photos 仅相册 tab 使用，不影响电台 tab 的 .album-grid */
+#album-photos{display:block!important;columns:3!important;column-gap:8px;padding:10px 10px 12px;grid-template-columns:none;gap:0 0}
+#album-photos:empty::before{content:"还没有照片或视频。点上方「📤 上传照片/视频」按钮，或手机端点右下角 📷 悬浮按钮拍照／选图。";display:block;column-span:all;-webkit-column-span:all;width:100%;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7;box-sizing:border-box}
+.album-empty{grid-column:1/-1;column-span:all;-webkit-column-span:all;display:block;width:100%;text-align:center;color:var(--muted);font-size:13px;padding:80px 16px;line-height:1.7;box-sizing:border-box}
+.album-cell{position:relative;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1);break-inside:avoid;margin-bottom:8px}
+.album-cell img,.album-cell video{width:100%;height:auto;display:block;background:#111}
+.album-cell .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;backdrop-filter:blur(2px)}
+.album-cell .badge.video{background:rgba(184,144,47,.85)}
+.album-cell .badge.photo{background:rgba(58,143,111,.85)}
+.album-cell .name{position:absolute;bottom:6px;left:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);padding:2px 6px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;pointer-events:none}
+.album-cell .del{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;backdrop-filter:blur(2px)}
+.album-cell:hover .del{display:flex}
+.album-cell.uploading{opacity:.7;pointer-events:none}
+.album-cell.uploading::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px}
+.album-cell.fail::after{content:"❌ 失败";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(192,40,40,.85);padding:4px 10px;border-radius:4px;font-size:12px}
+
+/* 手机端悬浮上传按钮：仅相册 tab 且窄屏显示 */
+.album-fab{display:none}
+@media (max-width:768px){
+  .tab-panel.active .album-fab{display:flex;align-items:center;justify-content:center;
+    position:fixed;right:16px;bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:80;
+    width:56px;height:56px;border-radius:50%;border:0;cursor:pointer;
+    background:var(--accent);color:#fff;font-size:26px;line-height:1;
+    box-shadow:0 6px 18px rgba(0,0,0,.28);-webkit-tap-highlight-color:transparent}
+  .tab-panel.active .album-fab:active{transform:scale(.94)}
+}
+
+/* 全屏查看器 */
+#album-viewer{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:1000;display:none;flex-direction:column}
+#album-viewer.show{display:flex}
+#album-viewer .topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;color:#fff;background:linear-gradient(rgba(0,0,0,.55),transparent);z-index:2;font-size:13px}
+#album-viewer .topbar b{font-weight:500;font-size:13px;opacity:.85;margin-right:8px}
+#album-viewer .topbar .actions{display:flex;gap:8px}
+#album-viewer .topbar button{background:rgba(255,255,255,.15);color:#fff;border:0;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;backdrop-filter:blur(4px)}
+#album-viewer .topbar button:hover{background:rgba(255,255,255,.28)}
+#album-viewer .stage{flex:1;position:relative;overflow:hidden;touch-action:pan-y}
+#album-viewer .stage{display:flex;align-items:center;justify-content:center;padding:24px 24px 64px}#album-viewer .av-media{position:relative;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;background:#000;user-select:none;-webkit-user-drag:none;display:block;transition:transform .34s cubic-bezier(.22,.61,.36,1),opacity .3s ease;will-change:transform,opacity}
+#album-viewer .av-media.from-right{transform:translateX(100%);opacity:0}
+#album-viewer .av-media.from-left{transform:translateX(-100%);opacity:0}
+#album-viewer .av-media.to-left{transform:translateX(-100%);opacity:0}
+#album-viewer .av-media.to-right{transform:translateX(100%);opacity:0}
+#album-viewer .av-media video{width:100%;height:100%;object-fit:contain;outline:none}
+#album-viewer .nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);color:#fff;border:0;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);user-select:none;z-index:5}
+#album-viewer .nav:hover{background:rgba(255,255,255,.28)}
+#album-viewer .nav.prev{left:14px}
+#album-viewer .nav.next{right:14px}
+#album-viewer .nav:disabled{opacity:.25;cursor:default}
+#album-viewer .counter{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.4);padding:4px 12px;border-radius:14px;z-index:2}
+#album-viewer .av-hint{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.5);padding:6px 14px;border-radius:14px;opacity:0;transition:opacity .4s ease;pointer-events:none;z-index:4}
+#album-viewer .av-hint.show{opacity:1}
+@media (max-width:600px){#album-viewer .nav{width:40px;height:40px;font-size:22px}.nav.prev{left:6px}.nav.next{right:6px}}
+@media (max-width:900px){#album-photos{columns:2}}@media (max-width:520px){#album-photos{columns:2;column-gap:5px}.album-cell{margin-bottom:5px;border-radius:6px}}
