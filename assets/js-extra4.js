@@ -339,13 +339,14 @@ const ALBUM = (function(){
     stage.appendChild(box);
     var dead = false;
     var done = function(){ if(dead) return; dead = true; if(box.parentNode) box.parentNode.removeChild(box); };
-    // 兜底：无论如何 12s 后移除，避免指示器永久残留
-    var guard = setTimeout(done, 12000);
+    // 兜底：无论解码事件是否到达，6s 后移除指示，避免一直转圈
+    var guard = setTimeout(done, 6000);
     var clear = function(){ clearTimeout(guard); done(); };
     if(el.tagName === 'IMG'){
-      // 关键：缓存命中时 load 可能已过，需在下一帧再查一次 complete
+      // 判据以 naturalWidth 为准：complete 在某些环境下始终为 false，
+      // 但只要拿到像素尺寸就说明图已可用，指示应立刻撤。
       var check = function(){
-        if(el.complete && el.naturalWidth > 0){ clear(); return true; }
+        if(el.naturalWidth > 0){ clear(); return true; }
         return false;
       };
       el.addEventListener('load', clear, { once: true });
@@ -355,7 +356,8 @@ const ALBUM = (function(){
         setTimeout(done, 2600);
       }, { once: true });
       requestAnimationFrame(function(){ if(!check()) setTimeout(check, 120); });
-      setTimeout(check, 600);
+      setTimeout(check, 700);
+      setTimeout(check, 2000);
     } else {
       el.addEventListener('loadeddata', clear, { once: true });
       el.addEventListener('error', function(){ box.innerHTML = '<span class="tx err">视频加载失败</span>'; clearTimeout(guard); setTimeout(done, 2600); }, { once: true });
