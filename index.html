@@ -182,18 +182,6 @@
   <div class="album-hint">照片限 15MB，视频限 50MB。上传后图片会缩到 1920px 长边，点击任一格进入全屏查看，长按「删除」移除。</div>
   <div id="album-photos"></div>
 
-  <div id="album-viewer" aria-hidden="true">
-    <div class="topbar">
-      <div class="actions">
-        <button id="av-download" title="下载">⤓ 下载</button>
-        <button id="av-close" title="关闭">✕ 关闭</button>
-      </div>
-    </div>
-    <button class="nav prev" id="av-prev" aria-label="上一张">‹</button>
-    <div class="stage" id="av-stage"></div>
-    <button class="nav next" id="av-next" aria-label="下一张">›</button>
-    <div class="counter" id="av-counter">0 / 0</div>
-    <div class="av-hint" id="av-hint">← 滑动或点击两侧翻页 →</div>
   </div>
   <button id="album-fab" class="album-fab" type="button" title="上传照片/视频" aria-label="上传照片或视频">📷</button>
 </section>
@@ -262,6 +250,44 @@
   </div>
 </div>
 </main>
+  <div id="album-viewer" aria-hidden="true">
+    <div class="topbar">
+      <div class="av-title" id="av-title">电子画册</div>
+      <div class="actions">
+        <button id="av-download" title="下载">⤓ 下载</button>
+        <button id="av-close" title="关闭">✕</button>
+      </div>
+    </div>
+    <div class="stage" id="av-stage"></div>
+    <!-- 左右翻页热区（参考电子画册：点击页面两侧翻页） -->
+    <button class="nav prev" id="av-prev" aria-label="上一页">‹</button>
+    <button class="nav next" id="av-next" aria-label="下一页">›</button>
+    <!-- 底部工具栏（参考电子画册按钮组） -->
+    <div class="av-toolbar" id="av-toolbar">
+      <button class="av-btn" id="av-thumb-btn" title="缩略图"><span class="ico">▦</span><span class="lb">缩略图</span></button>
+      <button class="av-btn" id="av-jump-btn" title="跳至"><span class="ico">⇥</span><span class="lb">跳至</span></button>
+      <button class="av-btn" id="av-zoom-btn" title="放大"><span class="ico">⤢</span><span class="lb">放大</span></button>
+      <button class="av-btn" id="av-play-btn" title="自动翻页"><span class="ico">▶</span><span class="lb">自动</span></button>
+      <button class="av-btn" id="av-fit-btn" title="适应屏幕"><span class="ico">⤡</span><span class="lb">适应</span></button>
+    </div>
+    <div class="av-hint" id="av-hint">← 滑动或点击两侧翻页 →</div>
+    <!-- 缩略图抽屉 -->
+    <div class="av-drawer" id="av-drawer" aria-hidden="true">
+      <div class="av-drawer-head"><b>缩略图</b><button id="av-drawer-close" aria-label="关闭">✕</button></div>
+      <div class="av-thumbs" id="av-thumbs"></div>
+    </div>
+    <!-- 页码输入跳转 -->
+    <div class="av-jump" id="av-jump" aria-hidden="true">
+      <div class="av-jump-box">
+        <p>跳至第 <input id="av-jump-input" type="number" min="1" value="1"> 页 / 共 <b id="av-jump-total">0</b> 页</p>
+        <div class="av-jump-actions">
+          <button id="av-jump-cancel" type="button">取消</button>
+          <button id="av-jump-go" type="button">跳转</button>
+        </div>
+      </div>
+    </div>
+    <div class="pager" id="pager">0 / 0</div>
+
 <div id="player-page">
   <div class="pp-top">
     <button class="pp-back" id="pp-back">← 返回</button>
