@@ -9,7 +9,6 @@ const ALBUM = (function(){
   var status = document.getElementById('album-status');
   var viewer = document.getElementById('album-viewer');
   var stage = document.getElementById('av-stage');
-  var avCounter = document.getElementById('av-counter');
   // Safety: if core elements missing, return dummy to prevent crashes
   if(!grid){
     console.error('[ALBUM] #album-photos not found, module disabled');
@@ -236,7 +235,15 @@ const ALBUM = (function(){
     }
   }
 
-  // 全屏画廊查看器（书籍翻页 / 滑动翻页）
+  // ============ 全屏电子画册查看器（分页显示） ============
+  // 参考云展网 Metro 模板电子画册：单页满屏 + 底部工具栏 + 侧边翻页 + 缩略图抽屉
+  var pager = document.getElementById('pager');
+  var drawer = document.getElementById('av-drawer');
+  var thumbs = document.getElementById('av-thumbs');
+  var jumpPanel = document.getElementById('av-jump');
+  var playTimer = null;
+  var jumpTimer = null;   // 防止自动翻页读到视频时不打断
+
   function buildMedia(f){
     let el;
     if(isVid(f.name)){
@@ -246,34 +253,86 @@ const ALBUM = (function(){
     } else {
       el = document.createElement('img');
       el.src = mediaUrl(f); el.alt = f.name;
+      el.decoding = 'async';
     }
     el.className = 'av-media';
     return el;
   }
+
+  function updatePager(){
+    var total = files.length;
+    if(pager) pager.textContent = total ? ((viewIdx+1) + ' / ' + total) : '0 / 0';
+    var jt = document.getElementById('av-jump-total');
+    if(jt) jt.textContent = total;
+    var ji = document.getElementById('av-jump-input');
+    if(ji) ji.max = total;
+    var _p = document.getElementById('av-prev'); if(_p) _p.disabled = (viewIdx<=0);
+    var _n = document.getElementById('av-next'); if(_n) _n.disabled = (viewIdx>=total-1);
+    // 缩略图高亮
+    if(thumbs){
+      var cur = thumbs.querySelector('.av-thumb.cur');
+      if(cur) cur.classList.remove('cur');
+      var t = thumbs.querySelector('.av-thumb[data-idx="'+viewIdx+'"]');
+      if(t){
+        t.classList.add('cur');
+        if(drawer && drawer.classList.contains('open')){
+          var tr = t.getBoundingClientRect(), dr = drawer.getBoundingClientRect();
+          if(tr.top < dr.top || tr.bottom > dr.bottom) t.scrollIntoView({block:'center'});
+        }
+      }
+    }
+  }
+
+  function buildThumbs(){
+    if(!thumbs) return;
+    thumbs.innerHTML = '';
+    files.forEach(function(f, i){
+      var d = document.createElement('div');
+      d.className = 'av-thumb'; d.dataset.idx = i;
+      var inner = isVid(f.name)
+        ? '<video src="'+escHtml(mediaUrl(f))+'#t=0.3" muted preload="metadata" playsinline></video>'
+        : '<img loading="lazy" decoding="async" src="'+escHtml(mediaUrl(f))+'" alt="">';
+      d.innerHTML = inner + '<span class="no">'+(i+1)+'</span>';
+      d.addEventListener('click', function(){ gotoIdx(i); if(drawer) drawer.classList.remove('open'); });
+      thumbs.appendChild(d);
+    });
+  }
+
+  function gotoIdx(i, dir){
+    if(i<0 || i>=files.length) return;
+    var d = dir || (i > viewIdx ? 'next' : 'prev');
+    viewIdx = i;
+    showCurrent(d);
+    updatePager();
+  }
+
   function openViewer(idx){
     if(!files.length) return;
     viewIdx = idx;
+    buildThumbs();
     showCurrent(null);
+    updatePager();
     viewer.classList.add('show');
     viewer.setAttribute('aria-hidden','false');
     showHint();
   }
+
   function closeViewer(){
-    viewer.classList.remove('show');
+    viewer.classList.remove('show','zoomed');
     viewer.setAttribute('aria-hidden','true');
     stage.innerHTML = '';
+    if(drawer) drawer.classList.remove('open');
+    if(jumpPanel) jumpPanel.classList.remove('open');
+    stopAuto();
     viewIdx = -1; isZoomed = false;
   }
-  function goPrev(){ if(files.length>1){ viewIdx = (viewIdx - 1 + files.length) % files.length; showCurrent('prev'); } }
-  function goNext(){ if(files.length>1){ viewIdx = (viewIdx + 1) % files.length; showCurrent('next'); } }
+
+  function goPrev(){ if(files.length>1 && viewIdx>0){ viewIdx--; showCurrent('prev'); updatePager(); } }
+  function goNext(){ if(files.length>1 && viewIdx<files.length-1){ viewIdx++; showCurrent('next'); updatePager(); } }
+
   function showCurrent(dir){
     if(viewIdx < 0 || !files[viewIdx]) return;
     const f = files[viewIdx];
-    const total = files.length;
-    if(avCounter) avCounter.textContent = (viewIdx+1) + ' / ' + total;
-    const single = (total<=1);
-    var _p = document.getElementById('av-prev'); if(_p) _p.disabled = single;
-    var _n = document.getElementById('av-next'); if(_n) _n.disabled = single;
     var _dl = document.getElementById('av-download');
     if(_dl) _dl.onclick = () => {
       const a = document.createElement('a');
@@ -291,33 +350,114 @@ const ALBUM = (function(){
     if(outgoing){
       outgoing.classList.add(dir==='next' ? 'to-left' : 'to-right');
       const dead = outgoing;
-      setTimeout(() => { if(dead.parentNode) dead.parentNode.removeChild(dead); }, 380);
+      setTimeout(() => { if(dead.parentNode) dead.parentNode.removeChild(dead); }, 400);
     }
   }
+
   function showHint(){
     const h = document.getElementById('av-hint'); if(!h) return;
     h.classList.add('show'); clearTimeout(h._t);
-    h._t = setTimeout(() => h.classList.remove('show'), 2400);
+    h._t = setTimeout(() => h.classList.remove('show'), 2600);
   }
+
+  // ---- 自动翻页 ----
+  function startAuto(){
+    stopAuto();
+    var btn = document.getElementById('av-play-btn');
+    if(btn) btn.classList.add('on');
+    playTimer = setInterval(function(){
+      if(viewIdx >= files.length-1){ stopAuto(); return; }
+      goNext();
+    }, 4000);
+  }
+  function stopAuto(){
+    if(playTimer){ clearInterval(playTimer); playTimer = null; }
+    var btn = document.getElementById('av-play-btn');
+    if(btn) btn.classList.remove('on');
+  }
+
+  // ---- 绑定工具栏 ----
   var _avClose = document.getElementById('av-close');
   var _avPrev = document.getElementById('av-prev');
   var _avNext = document.getElementById('av-next');
   if(_avClose) _avClose.addEventListener('click', closeViewer);
   if(_avPrev) _avPrev.addEventListener('click', goPrev);
   if(_avNext) _avNext.addEventListener('click', goNext);
-  if(viewer) viewer.addEventListener('click', (e) => { if(e.target === viewer) closeViewer(); });
+
+  var _thumbBtn = document.getElementById('av-thumb-btn');
+  if(_thumbBtn) _thumbBtn.addEventListener('click', function(){
+    if(!drawer) return;
+    buildThumbs();
+    drawer.classList.toggle('open');
+    if(drawer.classList.contains('open')) updatePager();
+  });
+  var _drawerClose = document.getElementById('av-drawer-close');
+  if(_drawerClose) _drawerClose.addEventListener('click', function(){ if(drawer) drawer.classList.remove('open'); });
+
+  var _jumpBtn = document.getElementById('av-jump-btn');
+  if(_jumpBtn) _jumpBtn.addEventListener('click', function(){
+    if(!jumpPanel) return;
+    var ji = document.getElementById('av-jump-input');
+    if(ji) ji.value = viewIdx+1;
+    jumpPanel.classList.add('open');
+    if(ji) { try{ ji.focus(); ji.select(); }catch(e){} }
+  });
+  var _jumpCancel = document.getElementById('av-jump-cancel');
+  if(_jumpCancel) _jumpCancel.addEventListener('click', function(){ if(jumpPanel) jumpPanel.classList.remove('open'); });
+  var _jumpGo = document.getElementById('av-jump-go');
+  if(_jumpGo) _jumpGo.addEventListener('click', doJump);
+  var _ji = document.getElementById('av-jump-input');
+  if(_ji) _ji.addEventListener('keydown', function(e){ if(e.key==='Enter') doJump(); });
+  function doJump(){
+    var ji = document.getElementById('av-jump-input');
+    var n = parseInt(ji && ji.value, 10);
+    if(isNaN(n)) return;
+    n = Math.min(Math.max(n,1), files.length);
+    gotoIdx(n-1);
+    if(jumpPanel) jumpPanel.classList.remove('open');
+  }
+
+  var _zoomBtn = document.getElementById('av-zoom-btn');
+  if(_zoomBtn) _zoomBtn.addEventListener('click', toggleZoom);
+  function toggleZoom(){
+    isZoomed = !isZoomed;
+    viewer.classList.toggle('zoomed', isZoomed);
+    var btn = document.getElementById('av-zoom-btn');
+    if(btn){ btn.classList.toggle('on', isZoomed); btn.querySelector('.lb').textContent = isZoomed ? '缩小' : '放大'; }
+  }
+
+  var _fitBtn = document.getElementById('av-fit-btn');
+  if(_fitBtn) _fitBtn.addEventListener('click', function(){
+    if(isZoomed) toggleZoom();
+    else showHint();
+  });
+
+  var _playBtn = document.getElementById('av-play-btn');
+  if(_playBtn) _playBtn.addEventListener('click', function(){
+    if(playTimer) stopAuto(); else startAuto();
+  });
+
+  if(viewer) viewer.addEventListener('click', (e) => { if(e.target === viewer || e.target === stage) closeViewer(); });
   document.addEventListener('keydown', (e) => {
     if(!viewer.classList.contains('show')) return;
+    if(jumpPanel && jumpPanel.classList.contains('open')){
+      if(e.key === 'Escape') jumpPanel.classList.remove('open');
+      return;
+    }
     if(e.key === 'Escape') closeViewer();
     else if(e.key === 'ArrowLeft') goPrev();
     else if(e.key === 'ArrowRight') goNext();
+    else if(e.key === 'Home') gotoIdx(0);
+    else if(e.key === 'End') gotoIdx(files.length-1);
   });
-  // 滑动翻页：触摸 + 鼠标拖拽
+
+  // 滑动翻页：触摸 + 鼠标拖拽（放大模式下不拦截，交给原生滚动）
   let _sx=null, _sy=null, _drag=false;
   function _down(x,y){ _sx=x; _sy=y; _drag=true; }
   function _up(x,y){
     if(!_drag || _sx===null) return;
     const dx=x-_sx, dy=y-_sy; _drag=false; _sx=_sy=null;
+    if(isZoomed) return;
     if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)){ dx<0 ? goNext() : goPrev(); }
   }
   if(stage){
@@ -327,12 +467,22 @@ const ALBUM = (function(){
     stage.addEventListener('pointerup', (e)=>{ if(e.pointerType==='mouse') _up(e.clientX, e.clientY); });
     stage.addEventListener('pointercancel', ()=>{ _drag=false; _sx=_sy=null; });
   }
+  // 双击放大/缩小
+  if(stage){
+    var _lastTap = 0;
+    stage.addEventListener('click', function(e){
+      if(e.target !== stage && !e.target.classList.contains('av-media')) return;
+      var now = Date.now();
+      if(now - _lastTap < 300){ toggleZoom(); }
+      _lastTap = now;
+    });
+  }
 
   // 每次打开相册 tab 都重新拉取，保证新上传的照片立刻可见
   var _albumTabBtn = document.querySelector('button[data-tab="album"]');
   if(_albumTabBtn) _albumTabBtn.addEventListener('click', () => { list(); });
 
-  return { list };
+  return { list, openViewer };
 })();
 
 // 首次进站：如果 saved tab 或 hash 指向 album，自动加载
