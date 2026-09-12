@@ -330,6 +330,28 @@ const ALBUM = (function(){
   function goPrev(){ if(files.length>1 && viewIdx>0){ viewIdx--; showCurrent('prev'); updatePager(); } }
   function goNext(){ if(files.length>1 && viewIdx<files.length-1){ viewIdx++; showCurrent('next'); updatePager(); } }
 
+  // 图片加载中占位（实测：大图首帧会有可见空窗，需给用户反馈）
+  function attachLoader(el, f){
+    var box = document.createElement('div');
+    box.className = 'av-loading';
+    box.innerHTML = '<span class="sp"></span><span class="tx">加载中…</span>';
+    stage.appendChild(box);
+    var done = function(){ if(box.parentNode) box.parentNode.removeChild(box); };
+    if(el.tagName === 'IMG'){
+      if(el.complete && el.naturalWidth > 0){ done(); return el; }
+      el.addEventListener('load', done, { once: true });
+      el.addEventListener('error', function(){
+        box.innerHTML = '<span class="tx err">加载失败，滑动或点两侧可重试</span>';
+        setTimeout(done, 2600);
+      }, { once: true });
+    } else {
+      el.addEventListener('loadeddata', done, { once: true });
+      el.addEventListener('error', function(){ box.innerHTML = '<span class="tx err">视频加载失败</span>'; setTimeout(done, 2600); }, { once: true });
+      setTimeout(done, 6000);   // 视频元数据可能一直不来，兜底
+    }
+    return el;
+  }
+
   function showCurrent(dir){
     if(viewIdx < 0 || !files[viewIdx]) return;
     const f = files[viewIdx];
@@ -340,6 +362,10 @@ const ALBUM = (function(){
       document.body.appendChild(a); a.click(); a.remove();
     };
     const incoming = buildMedia(f);
+    // 上一页的加载占位先清掉，避免叠加
+    var oldLd = stage.querySelector('.av-loading');
+    if(oldLd) oldLd.remove();
+    attachLoader(incoming, f);
     incoming.classList.add('incoming');
     if(dir==='next') incoming.classList.add('from-right');
     else if(dir==='prev') incoming.classList.add('from-left');
