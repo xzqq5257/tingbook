@@ -118,6 +118,15 @@
 #album-viewer .av-jump-actions #av-jump-cancel{background:rgba(255,255,255,.14);color:#fff}
 #album-viewer .av-jump-actions #av-jump-go{background:#e23b3b;color:#fff}
 
+/* 图片/视频加载中占位 */
+#album-viewer .av-loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;
+  display:flex;flex-direction:column;align-items:center;gap:10px;color:rgba(255,255,255,.72);font-size:13px;pointer-events:none}
+#album-viewer .av-loading .sp{width:26px;height:26px;border-radius:50%;border:2.5px solid rgba(255,255,255,.24);
+  border-top-color:rgba(255,255,255,.9);animation:avspin .8s linear infinite;display:block}
+#album-viewer .av-loading .tx{letter-spacing:.5px}
+#album-viewer .av-loading .tx.err{color:#ff9a9a;font-size:12.5px}
+@keyframes avspin{to{transform:rotate(360deg)}}
+
 @media (max-width:600px){
   #album-viewer .nav{width:38px;height:56px;font-size:23px}
   #album-viewer .nav.prev{left:4px}
