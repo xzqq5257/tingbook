@@ -1,7 +1,12 @@
 // Cloudflare Pages Function: 图片代理
 // 把相册图片从 raw.githubusercontent.com 转由本站（Cloudflare CDN）出图，
 // 解决国内直连 GitHub raw 极慢 / 超时 / 断连的问题。
-// 缓存策略：GitHub blob sha 做 cache key，内容不可变 → 长缓存（1 年 immutable）。
+//
+// 用法：GET /api/img?path=photos/xxx.jpg
+// 注意：刻意不使用 functions/api/img/[[...path]].js 这种带方括号的文件名——
+//       方括号是 glob 元字符，会让 wrangler pages deploy 上传失败。
+//
+// 缓存策略：内容不可变 → 边缘缓存 1 年 immutable。
 
 const OWNER = "xzqq5257";
 const REPO = "tingbook";
@@ -26,52 +31,35 @@ function isSafePath(path) {
   return true;
 }
 
-// 逐个字节校验 UTF-8 路径（拒绝 %00、非 UTF-8 序列等）
 function isValidPath(path) {
-  try {
-    decodeURIComponent(encodeURIComponent(path));
-  } catch (e) {
-    return false;
-  }
-  return !/[\u0000-\u001f]/.test(path);
+  // 拒绝控制字符
+  return !/[\u0000-\u001f\u007f]/.test(path);
 }
 
 export async function onRequestGet(context) {
-  const { request, params } = context;
-
-  // /api/img/photos/xxx.jpg  → params.path 为数组
-  let path = Array.isArray(params.path) ? params.path.join("/") : params.path;
-
-  if (!path) {
-    const u = new URL(request.url);
-    path = u.searchParams.get("path") || "";
-  }
+  const { request } = context;
+  const u = new URL(request.url);
+  const path = u.searchParams.get("path") || "";
 
   if (!isSafePath(path) || !isValidPath(path)) {
     return bad("invalid path", 400);
   }
 
-  const upstream = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
-
-  // 允许浏览器/Cloudflare 缓存复用；用 ETag 做协商缓存
-  const inm = request.headers.get("if-none-match");
-
   const cacheUrl = new URL(request.url);
   cacheUrl.search = "";
+  cacheUrl.pathname = `/api/img/_cache/${encodeURIComponent(path)}`;
   const cache = caches.default;
   const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
 
-  const cached = await cache.match(cacheKey);
-  if (cached) return cached;
+  const hit = await cache.match(cacheKey);
+  if (hit) return hit;
+
+  const upstream = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
 
   let r;
   try {
     r = await fetch(upstream, {
-      headers: {
-        "User-Agent": "tingbook-img-proxy",
-        // 若客户端带了协商缓存标识，透传给 GitHub，可能直接 304
-        ...(inm ? { "If-None-Match": inm } : {}),
-      },
+      headers: { "User-Agent": "tingbook-img-proxy" },
       cf: { cacheEverything: true, cacheTtl: 31536000 },
     });
   } catch (e) {
@@ -89,12 +77,9 @@ export async function onRequestGet(context) {
   headers.set("x-content-type-options", "nosniff");
   const etag = r.headers.get("etag");
   if (etag) headers.set("etag", etag);
-  const len = r.headers.get("content-length");
-  if (len) headers.set("content-length", len);
 
   const resp = new Response(r.body, { status: 200, headers });
 
-  // 写入 Cloudflare 边缘缓存
   try {
     context.waitUntil(cache.put(cacheKey, resp.clone()));
   } catch (e) {}

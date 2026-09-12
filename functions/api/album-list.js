@@ -87,8 +87,8 @@ export async function onRequestGet(context) {
           type,
           rawUrl: `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${it.path}`,
           // 走本站代理（Cloudflare CDN 出图 + 长缓存），避免国内直连 GitHub raw 超时。
-          // 详情见 functions/api/img/[[...path]].js
-          proxyUrl: `/api/img/${it.path}`,
+          // 详情见 functions/api/img.js
+          proxyUrl: `/api/img?path=${encodeURIComponent(it.path)}`,
           htmlUrl: `https://github.com/${OWNER}/${REPO}/blob/main/${it.path}`,
           isVideo: type === "video",
           isImage: type === "image",
