@@ -321,6 +321,7 @@ const ALBUM = (function(){
     viewer.classList.remove('show','zoomed');
     viewer.setAttribute('aria-hidden','true');
     stage.innerHTML = '';
+    stage.querySelectorAll('.av-loading').forEach(function(n){ n.remove(); });
     if(drawer) drawer.classList.remove('open');
     if(jumpPanel) jumpPanel.classList.remove('open');
     stopAuto();
@@ -336,18 +337,28 @@ const ALBUM = (function(){
     box.className = 'av-loading';
     box.innerHTML = '<span class="sp"></span><span class="tx">加载中…</span>';
     stage.appendChild(box);
-    var done = function(){ if(box.parentNode) box.parentNode.removeChild(box); };
+    var dead = false;
+    var done = function(){ if(dead) return; dead = true; if(box.parentNode) box.parentNode.removeChild(box); };
+    // 兜底：无论如何 12s 后移除，避免指示器永久残留
+    var guard = setTimeout(done, 12000);
+    var clear = function(){ clearTimeout(guard); done(); };
     if(el.tagName === 'IMG'){
-      if(el.complete && el.naturalWidth > 0){ done(); return el; }
-      el.addEventListener('load', done, { once: true });
+      // 关键：缓存命中时 load 可能已过，需在下一帧再查一次 complete
+      var check = function(){
+        if(el.complete && el.naturalWidth > 0){ clear(); return true; }
+        return false;
+      };
+      el.addEventListener('load', clear, { once: true });
       el.addEventListener('error', function(){
         box.innerHTML = '<span class="tx err">加载失败，滑动或点两侧可重试</span>';
+        clearTimeout(guard);
         setTimeout(done, 2600);
       }, { once: true });
+      requestAnimationFrame(function(){ if(!check()) setTimeout(check, 120); });
+      setTimeout(check, 600);
     } else {
-      el.addEventListener('loadeddata', done, { once: true });
-      el.addEventListener('error', function(){ box.innerHTML = '<span class="tx err">视频加载失败</span>'; setTimeout(done, 2600); }, { once: true });
-      setTimeout(done, 6000);   // 视频元数据可能一直不来，兜底
+      el.addEventListener('loadeddata', clear, { once: true });
+      el.addEventListener('error', function(){ box.innerHTML = '<span class="tx err">视频加载失败</span>'; clearTimeout(guard); setTimeout(done, 2600); }, { once: true });
     }
     return el;
   }
@@ -363,8 +374,7 @@ const ALBUM = (function(){
     };
     const incoming = buildMedia(f);
     // 上一页的加载占位先清掉，避免叠加
-    var oldLd = stage.querySelector('.av-loading');
-    if(oldLd) oldLd.remove();
+    stage.querySelectorAll('.av-loading').forEach(function(n){ n.remove(); });
     attachLoader(incoming, f);
     incoming.classList.add('incoming');
     if(dir==='next') incoming.classList.add('from-right');
