@@ -43,28 +43,87 @@
   .tab-panel.active .album-fab:active{transform:scale(.94)}
 }
 
-/* 全屏查看器 */
-#album-viewer{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:1000;display:none;flex-direction:column}
+/* ============ 全屏电子画册查看器（分页显示） ============
+   参考云展网 Metro 模板电子画册：单页满屏 + 底部工具栏 + 侧边翻页热区 + 缩略图抽屉 */
+#album-viewer{position:fixed;inset:0;background:#1a1a1a;z-index:1000;display:none;flex-direction:column;overflow:hidden}
 #album-viewer.show{display:flex}
-#album-viewer .topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;color:#fff;background:linear-gradient(rgba(0,0,0,.55),transparent);z-index:2;font-size:13px}
-#album-viewer .topbar b{font-weight:500;font-size:13px;opacity:.85;margin-right:8px}
-#album-viewer .topbar .actions{display:flex;gap:8px}
-#album-viewer .topbar button{background:rgba(255,255,255,.15);color:#fff;border:0;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;backdrop-filter:blur(4px)}
-#album-viewer .topbar button:hover{background:rgba(255,255,255,.28)}
-#album-viewer .stage{flex:1;position:relative;overflow:hidden;touch-action:pan-y}
-#album-viewer .stage{display:flex;align-items:center;justify-content:center;padding:24px 24px 64px}#album-viewer .av-media{position:relative;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;background:#000;user-select:none;-webkit-user-drag:none;display:block;transition:transform .34s cubic-bezier(.22,.61,.36,1),opacity .3s ease;will-change:transform,opacity}
+#album-viewer .topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;color:#fff;background:linear-gradient(rgba(0,0,0,.6),transparent);z-index:6;font-size:13px;pointer-events:none}
+#album-viewer .topbar .av-title{font-weight:500;font-size:13px;opacity:.9;letter-spacing:.5px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+#album-viewer .topbar .actions{display:flex;gap:8px;pointer-events:auto}
+#album-viewer .topbar button{background:rgba(255,255,255,.16);color:#fff;border:0;padding:7px 13px;border-radius:8px;cursor:pointer;font-size:13px;backdrop-filter:blur(6px);transition:background .18s}
+#album-viewer .topbar button:hover{background:rgba(255,255,255,.3)}
+
+/* 页面舞台：单页居中，图片等比 contained（画册的核心） */
+#album-viewer .stage{flex:1;position:relative;overflow:hidden;touch-action:pan-y;display:flex;align-items:center;justify-content:center;padding:56px 20px 84px}
+#album-viewer .av-media{position:relative;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;background:transparent;user-select:none;-webkit-user-drag:none;display:block;
+  box-shadow:0 6px 34px rgba(0,0,0,.5);border-radius:3px;
+  transition:transform .36s cubic-bezier(.22,.61,.36,1),opacity .3s ease;will-change:transform,opacity;transform-origin:center center}
 #album-viewer .av-media.from-right{transform:translateX(100%);opacity:0}
 #album-viewer .av-media.from-left{transform:translateX(-100%);opacity:0}
 #album-viewer .av-media.to-left{transform:translateX(-100%);opacity:0}
 #album-viewer .av-media.to-right{transform:translateX(100%);opacity:0}
 #album-viewer .av-media video{width:100%;height:100%;object-fit:contain;outline:none}
-#album-viewer .nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);color:#fff;border:0;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);user-select:none;z-index:5}
-#album-viewer .nav:hover{background:rgba(255,255,255,.28)}
-#album-viewer .nav.prev{left:14px}
-#album-viewer .nav.next{right:14px}
-#album-viewer .nav:disabled{opacity:.25;cursor:default}
-#album-viewer .counter{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.4);padding:4px 12px;border-radius:14px;z-index:2}
-#album-viewer .av-hint{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.5);padding:6px 14px;border-radius:14px;opacity:0;transition:opacity .4s ease;pointer-events:none;z-index:4}
+/* 放大模式 */
+#album-viewer.zoomed .stage{overflow:auto;align-items:flex-start;justify-content:flex-start;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
+#album-viewer.zoomed .av-media{width:auto;height:auto;max-width:none;max-height:none;flex:none;box-shadow:none}
+
+/* 左右翻页热区 */
+#album-viewer .nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.34);color:#fff;border:0;width:44px;height:64px;border-radius:10px;cursor:pointer;font-size:26px;line-height:1;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);user-select:none;z-index:5;opacity:0;transition:opacity .22s,background .18s;padding:0}
+#album-viewer.show .nav{opacity:.72}
+#album-viewer .nav:hover{background:rgba(0,0,0,.6);opacity:1}
+#album-viewer .nav.prev{left:10px}
+#album-viewer .nav.next{right:10px}
+#album-viewer .nav:disabled{opacity:.18!important;cursor:default}
+
+/* 底部工具栏（画册按钮组） */
+#album-viewer .av-toolbar{position:absolute;left:0;right:0;bottom:0;height:62px;display:flex;align-items:center;justify-content:center;gap:4px;
+  background:linear-gradient(transparent,rgba(0,0,0,.72) 40%);padding:0 6px calc(env(safe-area-inset-bottom,0px));z-index:7}
+#album-viewer .av-btn{flex:1 1 0;max-width:92px;height:50px;background:transparent;border:0;color:#fff;cursor:pointer;border-radius:9px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;-webkit-tap-highlight-color:transparent;transition:background .16s;padding:0}
+#album-viewer .av-btn:hover{background:rgba(255,255,255,.14)}
+#album-viewer .av-btn:active{background:rgba(255,255,255,.24)}
+#album-viewer .av-btn .ico{font-size:19px;line-height:1.1;opacity:.95}
+#album-viewer .av-btn .lb{font-size:10.5px;line-height:1.2;opacity:.82}
+#album-viewer .av-btn.on{background:rgba(226,59,59,.32)}
+#album-viewer .av-btn.on .ico{opacity:1}
+
+/* 页码指示器 */
+#album-viewer .pager{position:absolute;bottom:74px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.5);padding:5px 13px;border-radius:15px;z-index:7;backdrop-filter:blur(4px);letter-spacing:.5px;font-variant-numeric:tabular-nums}
+
+/* 滑动提示（含短位分页器，移动到页面上方避免与工具栏重叠） */
+#album-viewer .av-hint{position:absolute;bottom:114px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.62);padding:6px 15px;border-radius:15px;opacity:0;transition:opacity .4s ease;pointer-events:none;z-index:7;white-space:nowrap}
 #album-viewer .av-hint.show{opacity:1}
-@media (max-width:600px){#album-viewer .nav{width:40px;height:40px;font-size:22px}.nav.prev{left:6px}.nav.next{right:6px}}
+
+/* 缩略图抽屉 */
+#album-viewer .av-drawer{position:absolute;left:0;right:0;bottom:0;height:min(62vh,460px);background:rgba(22,22,26,.97);backdrop-filter:blur(12px);
+  z-index:9;display:flex;flex-direction:column;transform:translateY(102%);transition:transform .3s cubic-bezier(.22,.61,.36,1);border-radius:14px 14px 0 0;box-shadow:0 -6px 26px rgba(0,0,0,.5)}
+#album-viewer .av-drawer.open{transform:translateY(0)}
+#album-viewer .av-drawer-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px 8px;color:#fff;font-size:13px;border-bottom:1px solid rgba(255,255,255,.1);flex:none}
+#album-viewer .av-drawer-head button{background:rgba(255,255,255,.14);border:0;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1}
+#album-viewer .av-thumbs{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px;padding:12px;-webkit-overflow-scrolling:touch}
+#album-viewer .av-thumb{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:#000;cursor:pointer;border:2px solid transparent;transition:border-color .16s}
+#album-viewer .av-thumb img,#album-viewer .av-thumb video{width:100%;height:100%;object-fit:cover;display:block}
+#album-viewer .av-thumb.cur{border-color:#e23b3b}
+#album-viewer .av-thumb .no{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:10px;text-align:center;padding:2px 0}
+
+/* 跳页面板 */
+#album-viewer .av-jump{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:11;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+#album-viewer .av-jump.open{display:flex}
+#album-viewer .av-jump-box{background:#26262c;color:#fff;border-radius:13px;padding:22px 24px;width:min(86vw,290px);text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+#album-viewer .av-jump-box p{font-size:14px;margin:0 0 18px;line-height:1.9}
+#album-viewer .av-jump-box input{width:62px;padding:7px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.35);color:#fff;font-size:15px;text-align:center;outline:none;-moz-appearance:textfield}
+#album-viewer .av-jump-box input::-webkit-outer-spin-button,#album-viewer .av-jump-box input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+#album-viewer .av-jump-actions{display:flex;gap:10px}
+#album-viewer .av-jump-actions button{flex:1;padding:10px;border:0;border-radius:9px;cursor:pointer;font-size:14px}
+#album-viewer .av-jump-actions #av-jump-cancel{background:rgba(255,255,255,.14);color:#fff}
+#album-viewer .av-jump-actions #av-jump-go{background:#e23b3b;color:#fff}
+
+@media (max-width:600px){
+  #album-viewer .nav{width:38px;height:56px;font-size:23px}
+  #album-viewer .nav.prev{left:4px}
+  #album-viewer .nav.next{right:4px}
+  #album-viewer .stage{padding:52px 12px 78px}
+  #album-viewer .pager{bottom:70px}
+  #album-viewer .av-hint{bottom:106px}
+}
 @media (max-width:900px){#album-photos{columns:2}}@media (max-width:520px){#album-photos{columns:2;column-gap:5px}.album-cell{margin-bottom:5px;border-radius:6px}}
