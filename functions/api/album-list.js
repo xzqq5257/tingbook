@@ -58,14 +58,28 @@ function classify(name) {
 }
 
 async function readTree(token) {
-  // 1) 看仓库是否存在 / 拉取顶层 tree
-  const r = await ghGet(token, `/repos/${OWNER}/${REPO}/git/trees/main?recursive=1`);
-  if (!r.ok) {
+  // 先试带 token；若鉴权失败（401/403，多为 CF 环境变量里的 GH_TOKEN 过期），
+  // 则退回未认证 API（仓库公开可读），避免直接 500。
+  try {
+    const r = await ghGet(token, `/repos/${OWNER}/${REPO}/git/trees/main?recursive=1`);
+    if (r.ok) {
+      const j = await r.json();
+      return (j.tree || []).filter((it) => it.type === "blob" && it.path.startsWith(PREFIX));
+    }
     if (r.status === 404) return [];
-    throw new Error(`GH ${r.status}`);
+    // 其它错误（含 401/403）落到底部兜底
+  } catch (_) { /* 鉴权失败等情况，继续走未认证重试 */ }
+  if (token) {
+    try {
+      const r2 = await ghGet("", `/repos/${OWNER}/${REPO}/git/trees/main?recursive=1`);
+      if (r2.ok) {
+        const j = await r2.json();
+        return (j.tree || []).filter((it) => it.type === "blob" && it.path.startsWith(PREFIX));
+      }
+      if (r2.status === 404) return [];
+    } catch (_) { /* ignore */ }
   }
-  const j = await r.json();
-  return (j.tree || []).filter((it) => it.type === "blob" && it.path.startsWith(PREFIX));
+  throw new Error("无法读取仓库目录（已尝试带 token 与未认证两种方式）");
 }
 
 export async function onRequestGet(context) {
