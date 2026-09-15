@@ -68,4 +68,4 @@ push 到 `main` 后三套并行，全部 success 才算真上线：
 # 改 functions/ 后：push 即生效（Functions 随 Pages 原子发布）
 ```
 
-更多细节见 [ARCHITECTURE.md](ARCHITECTURE.md) 与 [DEPLOY_CHECKLIST.md](DEPLOY_CHECKLIST.md)。
+更多细节见 [ARCHITECTURE.md](docs/ARCHITECTURE.md) 与 [DEPLOY_CHECKLIST.md](docs/DEPLOY_CHECKLIST.md)。
