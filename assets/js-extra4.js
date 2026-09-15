@@ -18,6 +18,69 @@ const ALBUM = (function(){
   let viewIdx = -1;      // 当前查看的索引
   let isZoomed = false;
 
+  // ---- 置顶（localStorage 持久化，本机生效）----
+  var PIN_KEY = 'album_pinned_v1';
+  function loadPins(){ try{ return JSON.parse(localStorage.getItem(PIN_KEY)||'[]'); }catch(e){ return []; } }
+  function savePins(arr){ try{ localStorage.setItem(PIN_KEY, JSON.stringify(arr)); }catch(e){} }
+  function applyPins(){
+    var pins = loadPins();
+    var set = {}; pins.forEach(function(n){ set[n] = 1; });
+    files.forEach(function(f){ f.pinned = !!set[f.name]; });
+  }
+  function sortFiles(){
+    // 稳定排序：置顶在前，组内保持原顺序（现代引擎 sort 稳定）
+    files.sort(function(a,b){ return (b.pinned?1:0) - (a.pinned?1:0); });
+  }
+  function togglePin(f){
+    var pins = loadPins();
+    var i = pins.indexOf(f.name);
+    if(i>=0){ pins.splice(i,1); f.pinned = false; }
+    else { pins.push(f.name); f.pinned = true; }
+    savePins(pins);
+    sortFiles();
+    page = 0;            // 置顶后回到第一页，让用户立刻看到效果
+    render();
+    setStatus(f.pinned ? ('已置顶「'+f.name+'」') : ('已取消置顶「'+f.name+'」'));
+  }
+
+  // ---- 网格分页：每页最多 9 张，翻页看其余 ----
+  var PAGE_SIZE = 9;
+  var page = 0;
+  function totalPages(){ return Math.max(1, Math.ceil(files.length / PAGE_SIZE)); }
+
+  function ensurePager(){
+    var p = document.getElementById('album-pager');
+    if(p) return p;
+    p = document.createElement('div');
+    p.id = 'album-pager';
+    p.innerHTML = '<button type="button" id="apg-prev" aria-label="上一页">‹</button>' +
+      '<span id="apg-label"></span>' +
+      '<button type="button" id="apg-next" aria-label="下一页">›</button>';
+    grid.parentNode.insertBefore(p, grid.nextSibling);
+    document.getElementById('apg-prev').addEventListener('click', function(){ gotoPage(page-1); });
+    document.getElementById('apg-next').addEventListener('click', function(){ gotoPage(page+1); });
+    return p;
+  }
+  function gotoPage(n){
+    var t = totalPages();
+    page = Math.min(Math.max(n, 0), t-1);
+    render();
+    try{ grid.scrollIntoView({block:'start', behavior:'smooth'}); }catch(e){}
+  }
+  function updatePager(){
+    var p = ensurePager();
+    var t = totalPages();
+    var show = files.length > PAGE_SIZE;
+    p.style.display = show ? 'flex' : 'none';
+    if(!show) return;
+    var lb = document.getElementById('apg-label');
+    if(lb) lb.textContent = (page+1) + ' / ' + t;
+    var prev = document.getElementById('apg-prev');
+    var next = document.getElementById('apg-next');
+    if(prev) prev.disabled = (page<=0);
+    if(next) next.disabled = (page>=t-1);
+  }
+
   function fmtSize(n){
     if(n<1024) return n+'B';
     if(n<1024*1024) return (n/1024).toFixed(1)+'KB';
@@ -50,6 +113,9 @@ const ALBUM = (function(){
       const j = await r.json().catch(() => ({}));
       if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
       files = j.files || [];
+      applyPins();
+      sortFiles();
+      if(page >= totalPages()) page = 0;
       render();
       setStatus(files.length ? ('共 ' + files.length + ' 项') : '照片/视频会保存在你自己的 GitHub 仓库');
     }catch(e){
@@ -68,27 +134,38 @@ const ALBUM = (function(){
       empty.textContent = '还没有照片或视频。点上方「📤 上传照片/视频」按钮，或手机端点右下角 📷 悬浮按钮拍照／选图。';
       grid.appendChild(empty);
       grid._cachedCount = 0;
+      updatePager();
       return;
     }
-    files.forEach((f, i) => {
+    var start = page * PAGE_SIZE;
+    var slice = files.slice(start, start + PAGE_SIZE);
+    slice.forEach((f, k) => {
+      const i = start + k;   // 全局索引（查看器按 files 全序翻页）
       const cell = document.createElement('div');
-      cell.className = 'album-cell';
+      cell.className = 'album-cell' + (f.pinned ? ' pinned' : '');
       cell.dataset.idx = i;
       const typeLabel = isVid(f.name) ? '<span class="badge video">▶</span>' : '';
+      const pinBadge = f.pinned ? '<span class="badge pinned">📌</span>' : '';
       const mSrc = mediaUrl(f);
       const thumbSrc = isVid(f.name) ? '' : mSrc;
       const vidFirstFrame = isVid(f.name) ? ('<video src="'+escHtml(mSrc)+'#t=0.5" muted preload="metadata" playsinline></video>') : ('<img loading="lazy" decoding="async" src="'+escHtml(thumbSrc)+'" alt="">');
-      cell.innerHTML = typeLabel + vidFirstFrame +
+      cell.innerHTML = typeLabel + pinBadge + vidFirstFrame +
+        '<button class="pin" title="'+(f.pinned?'取消置顶':'置顶')+'">📌</button>' +
         '<button class="del" title="删除">×</button>';
       cell.querySelector('img,video').addEventListener('click', () => openViewer(i));
-      cell.addEventListener('click', (e) => { if(!e.target.classList.contains('del')) openViewer(i); });
+      cell.addEventListener('click', (e) => { if(!e.target.classList.contains('del') && !e.target.classList.contains('pin')) openViewer(i); });
       cell.querySelector('.del').addEventListener('click', (e) => {
         e.stopPropagation();
         if(confirm('删除「'+f.name+'」？此操作无法撤销。')) del(f);
       });
+      cell.querySelector('.pin').addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePin(f);
+      });
       grid.appendChild(cell);
     });
     grid._cachedCount = files.length;
+    updatePager();
   }
 
   // 客户端压缩大照片
@@ -180,8 +257,6 @@ const ALBUM = (function(){
         ok++;
         if(c){ c.remove(); }
         files.unshift(savedFile);
-        const cell = createCell(savedFile, 0);
-        grid.prepend(cell);
       }catch(e){
         fail++;
         if(c){ c.classList.remove('uploading'); c.classList.add('fail'); c.querySelector('.name').textContent = '上传失败'; }
@@ -189,6 +264,10 @@ const ALBUM = (function(){
       }
       i++;
     }
+    // 统一重渲染（分页 + 排序后回到第一页，新上传的图立即可见）
+    sortFiles();
+    page = 0;
+    render();
     setStatus('完成：成功 '+ok+'，失败 '+fail);
   });
 
