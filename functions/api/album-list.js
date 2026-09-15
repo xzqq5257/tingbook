@@ -19,12 +19,13 @@ function bad(error, status = 400) {
 }
 
 function auth(token) {
-  return {
-    Authorization: `token ${token}`,
+  const headers = {
     Accept: "application/vnd.github+json",
     "User-Agent": "tingbook-album",
     "X-GitHub-Api-Version": "2022-11-28",
   };
+  if (token) headers.Authorization = `token ${token}`;
+  return headers;
 }
 
 async function ghGet(token, path, tries = 3) {
@@ -69,8 +70,8 @@ async function readTree(token) {
 
 export async function onRequestGet(context) {
   const { env } = context;
+  // 仓库公开，无 token 时走未认证 API（60 req/h/IP）；有 token 则优先用 token。
   const token = (env.GH_TOKEN && env.GH_TOKEN.trim()) || "";
-  if (!token) return bad("missing env: GH_TOKEN", 500);
   try {
     const tree = await readTree(token);
     // 按上传时间倒序（git blob 没 mtime，按文件名日期前缀排序：2026-08-19-xxxx.jpg）
