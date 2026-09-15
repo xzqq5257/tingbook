@@ -262,18 +262,27 @@ const ALBUM = (function(){
     }
     update();
 
-    // 客户端预压缩（图片），再分块
-    const jobs = [];
-    for(const f of media){
-      let blob = f;
-      if(f.type.startsWith('image/')){ try{ blob = await compressIfNeeded(f); }catch(e){} }
-      jobs.push({ f: f, blob: blob });
-    }
+    const jobs = media.map(f => ({ f: f, blob: f }));
     const nameToJob = new Map();
     jobs.forEach(j => nameToJob.set(j.f.name, j));
 
     const chunks = [];
     for(let i=0; i<jobs.length; i+=UP_CHUNK) chunks.push(jobs.slice(i, i+UP_CHUNK));
+
+    // 批内压缩（4 路并行），卡片状态 等待中 → 处理中，让用户立刻看到在动
+    async function compressChunk(list){
+      let k = 0;
+      async function w(){
+        while(k < list.length){
+          const j = list[k++];
+          const c = cardOf.get(j.f);
+          const n = c && c.querySelector('.name');
+          if(n && n.textContent === '等待中') n.textContent = '处理中';
+          if(j.f.type.startsWith('image/')){ try{ j.blob = await compressIfNeeded(j.f); }catch(e){} }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(4, list.length) }, w));
+    }
 
     async function sendChunk(chunk){
       const fd = new FormData();
@@ -308,12 +317,19 @@ const ALBUM = (function(){
       }
     }
 
-    // 顺序提交各批次（每批内部 blob 并行），避免 ref 竞态
+    // 压缩与上传流水线并行（2 条），但「提交」全局串行 —— 并发 PATCH ref 会互相覆盖丢文件
     let ci = 0;
+    let sendChain = Promise.resolve();
+    function sendQueued(chunk){
+      const p = sendChain.then(() => sendChunk(chunk));
+      sendChain = p.catch(() => {});
+      return p;
+    }
     async function runner(){
       while(ci < chunks.length){
         const ch = chunks[ci++];
-        await sendChunk(ch);
+        await compressChunk(ch);
+        await sendQueued(ch);
       }
     }
     await Promise.all(Array.from({ length: Math.min(UP_FLIGHT, chunks.length) }, runner));
