@@ -42,7 +42,8 @@ export async function onRequestGet(context) {
           sha: it.sha || "",
           type,
           rawUrl: `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${path}`,
-          proxyUrl: `/api/img?path=${encodeURIComponent(path)}`,
+          // 方案 1：直接静态出图，砍掉 /api/img 函数代理（少一跳、首访更快）
+          proxyUrl: `/${path}`,
           htmlUrl: `https://github.com/${OWNER}/${REPO}/blob/main/${path}`,
           isVideo: type === "video",
           isImage: type === "image",
