@@ -216,54 +216,74 @@ const ALBUM = (function(){
     return j.file;
   }
 
+  // 并发上传（4 路），占位卡按 picked 下标一一对应，完成后原地变缩略图/失败
+  const UPLOAD_CONCURRENCY = 4;
+
   fileInput.addEventListener('change', async () => {
     const picked = Array.from(fileInput.files || []);
     fileInput.value = '';
     if(!picked.length) return;
-    const photoList = picked.filter(f => f.type.startsWith('image/'));
-    const videoList = picked.filter(f => f.type.startsWith('video/'));
+    const mediaIdx = [];
+    picked.forEach((f, i) => {
+      if(f.type.startsWith('image/') || f.type.startsWith('video/')) mediaIdx.push(i);
+    });
     const otherList = picked.filter(f => !f.type.startsWith('image/') && !f.type.startsWith('video/'));
     if(otherList.length){
       alert('已跳过 '+otherList.length+' 个不支持的文件（仅图片和视频）');
     }
-    // 在网格头部加占位 cell
-    const placeholders = [];
-    picked.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/')).forEach(() => {
+    // 占位卡：带缩略图预览，上传完移除，失败转失败态
+    const placeholders = new Array(picked.length).fill(null);
+    mediaIdx.forEach((i) => {
+      const f = picked[i];
       const c = document.createElement('div');
       c.className = 'album-cell uploading';
-      c.innerHTML = '<div class="name">上传中</div>';
+      let preview = '';
+      if(f.type.startsWith('image/')){
+        try{ preview = '<img src="'+URL.createObjectURL(f)+'" alt="">'; }catch(e){}
+      }
+      c.innerHTML = preview + '<div class="name">排队中</div>';
       grid.prepend(c);
-      placeholders.push(c);
+      placeholders[i] = c;
     });
-    let ok = 0, fail = 0;
-    let i = 0;
-    for(const f of picked){
+    let ok = 0, fail = 0, done = 0;
+    const total = mediaIdx.length;
+
+    async function task(i){
+      const f = picked[i];
       const isImg_ = f.type.startsWith('image/');
       const isVid_ = f.type.startsWith('video/');
-      if(!isImg_ && !isVid_) { i++; continue; }
       const limit = isImg_ ? MAX_PHOTO : MAX_VIDEO;
+      const c = placeholders[i];
       if(f.size > limit){
-        fail++;
-        const c = placeholders[i];
+        fail++; done++;
         if(c){ c.classList.remove('uploading'); c.classList.add('fail'); c.querySelector('.name').textContent = '超过 '+(isImg_?'15MB':'50MB'); }
         setStatus('「'+f.name+'」超过大小限制，已跳过');
-        i++;
-        continue;
+        return;
       }
-      const c = placeholders[i];
       try{
-        setStatus('上传 '+(ok+fail+1)+'/'+picked.length+'：'+f.name);
+        if(c) c.querySelector('.name').textContent = '上传中';
         const savedFile = await uploadOne(f);
-        ok++;
+        ok++; done++;
         if(c){ c.remove(); }
         files.unshift(savedFile);
+        setStatus('上传 '+done+'/'+total+'：'+f.name);
       }catch(e){
-        fail++;
+        fail++; done++;
         if(c){ c.classList.remove('uploading'); c.classList.add('fail'); c.querySelector('.name').textContent = '上传失败'; }
         setStatus('上传失败：'+f.name+' - '+e.message);
       }
-      i++;
     }
+
+    // 简易工作池：UPLOAD_CONCURRENCY 个 worker 从队列里抢任务
+    let cursor = 0;
+    async function worker(){
+      while(cursor < mediaIdx.length){
+        const i = mediaIdx[cursor++];
+        await task(i);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, total) }, worker));
+
     // 统一重渲染（分页 + 排序后回到第一页，新上传的图立即可见）
     sortFiles();
     page = 0;

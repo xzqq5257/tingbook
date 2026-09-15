@@ -116,28 +116,16 @@ export async function onRequestPost(context) {
   const filename = `${PREFIX}${ymd()}-${base}-${hash4}.${ext}`;
   const content = b64(buf);
 
-  // 检查同名是否已存在（短码冲突概率极小，撞上时用 sha 覆盖式更新）
-  let existingSha = null;
-  try {
-    const check = await fetch(`${API}/repos/${owner}/${repo}/contents/${filename}`, {
-      headers: auth(token),
-    });
-    if (check.ok) {
-      const j = await check.json();
-      existingSha = j.sha;
-    }
-  } catch {}
-
   const body = {
     message: `album: add ${file.name || "media"}`,
     content,
     branch: "main",
   };
-  if (existingSha) body.sha = existingSha;
+  // 不做预检 GET（省一次 API 往返）：直接 PUT，撞 422（已存在）时再取 sha 覆盖
 
   let tries = 0;
   let lastErr = null;
-  while (tries < 3) {
+  while (tries < 4) {
     tries++;
     const r = await fetch(`${API}/repos/${owner}/${repo}/contents/${filename}`, {
       method: "PUT",
@@ -162,6 +150,19 @@ export async function onRequestPost(context) {
     }
     const t = await r.text();
     lastErr = t.slice(0, 240);
+    if (r.status === 422 && !body.sha) {
+      // 文件已存在（重传同名内容）：补 sha 覆盖式更新
+      try {
+        const check = await fetch(`${API}/repos/${owner}/${repo}/contents/${filename}`, {
+          headers: auth(token),
+        });
+        if (check.ok) {
+          const j = await check.json();
+          body.sha = j.sha;
+          continue;
+        }
+      } catch {}
+    }
     if (r.status === 409) {
       // 冲突：等一会儿重试一次（罕见）
       await new Promise((rr) => setTimeout(rr, 400));

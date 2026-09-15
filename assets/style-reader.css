@@ -29,6 +29,8 @@
 .album-cell .del{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;backdrop-filter:blur(2px)}
 .album-cell:hover .del{display:flex}
 .album-cell.uploading{opacity:.7;pointer-events:none}
+.album-cell.uploading .name{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px;white-space:nowrap}
+.album-cell.uploading.fail .name{background:rgba(180,40,40,.75)}
 .album-cell.uploading::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px}
 .album-cell.fail::after{content:"❌ 失败";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(192,40,40,.85);padding:4px 10px;border-radius:4px;font-size:12px}
 /* 置顶按钮（悬停显示；触屏设备常显）与置顶角标 */
