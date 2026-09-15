@@ -216,79 +216,117 @@ const ALBUM = (function(){
     return j.file;
   }
 
-  // 并发上传（4 路），占位卡按 picked 下标一一对应，完成后原地变缩略图/失败
-  const UPLOAD_CONCURRENCY = 4;
+  // 批量上传：每批 10 张合并成 1 个 GitHub commit（提交数从 N 降到约 N/10），并配显式进度条。
+  const UP_CHUNK = 10;
+  const UP_FLIGHT = 2;   // 同时进行的批次数（顺序提交，避免 ref 竞态）
+
+  function ensureProgress(){
+    var bar = document.getElementById('album-progress');
+    var txt = document.getElementById('album-progress-text');
+    var fill = bar ? bar.querySelector('.fill') : null;
+    return { bar: bar, fill: fill, text: txt };
+  }
 
   fileInput.addEventListener('change', async () => {
     const picked = Array.from(fileInput.files || []);
     fileInput.value = '';
     if(!picked.length) return;
-    const mediaIdx = [];
-    picked.forEach((f, i) => {
-      if(f.type.startsWith('image/') || f.type.startsWith('video/')) mediaIdx.push(i);
-    });
-    const otherList = picked.filter(f => !f.type.startsWith('image/') && !f.type.startsWith('video/'));
-    if(otherList.length){
-      alert('已跳过 '+otherList.length+' 个不支持的文件（仅图片和视频）');
-    }
-    // 占位卡：带缩略图预览，上传完移除，失败转失败态
-    const placeholders = new Array(picked.length).fill(null);
-    mediaIdx.forEach((i) => {
-      const f = picked[i];
+    const media = picked.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    const other = picked.length - media.length;
+    if(other) alert('已跳过 '+other+' 个不支持的文件（仅图片和视频）');
+    if(!media.length) return;
+
+    // 占位卡 + 映射
+    const cardOf = new Map();
+    media.forEach(f => {
       const c = document.createElement('div');
       c.className = 'album-cell uploading';
       let preview = '';
       if(f.type.startsWith('image/')){
         try{ preview = '<img src="'+URL.createObjectURL(f)+'" alt="">'; }catch(e){}
       }
-      c.innerHTML = preview + '<div class="name">排队中</div>';
+      c.innerHTML = preview + '<div class="name">等待中</div>';
       grid.prepend(c);
-      placeholders[i] = c;
+      cardOf.set(f, c);
     });
-    let ok = 0, fail = 0, done = 0;
-    const total = mediaIdx.length;
 
-    async function task(i){
-      const f = picked[i];
-      const isImg_ = f.type.startsWith('image/');
-      const isVid_ = f.type.startsWith('video/');
-      const limit = isImg_ ? MAX_PHOTO : MAX_VIDEO;
-      const c = placeholders[i];
-      if(f.size > limit){
-        fail++; done++;
-        if(c){ c.classList.remove('uploading'); c.classList.add('fail'); c.querySelector('.name').textContent = '超过 '+(isImg_?'15MB':'50MB'); }
-        setStatus('「'+f.name+'」超过大小限制，已跳过');
-        return;
-      }
+    const total = media.length;
+    let ok = 0, fail = 0;
+    const prog = ensureProgress();
+    function update(){
+      const pct = total ? Math.round((ok+fail)/total*100) : 0;
+      if(prog.fill) prog.fill.style.width = pct + '%';
+      if(prog.text) prog.text.textContent = '上传中 ' + (ok+fail) + '/' + total + '（成功 ' + ok + ' · 失败 ' + fail + '）';
+      if(prog.bar) prog.bar.style.display = (ok+fail < total) ? 'block' : 'none';
+      if(prog.text) prog.text.style.display = (ok+fail < total) ? 'block' : 'none';
+    }
+    update();
+
+    // 客户端预压缩（图片），再分块
+    const jobs = [];
+    for(const f of media){
+      let blob = f;
+      if(f.type.startsWith('image/')){ try{ blob = await compressIfNeeded(f); }catch(e){} }
+      jobs.push({ f: f, blob: blob });
+    }
+    const nameToJob = new Map();
+    jobs.forEach(j => nameToJob.set(j.f.name, j));
+
+    const chunks = [];
+    for(let i=0; i<jobs.length; i+=UP_CHUNK) chunks.push(jobs.slice(i, i+UP_CHUNK));
+
+    async function sendChunk(chunk){
+      const fd = new FormData();
+      chunk.forEach(j => fd.append('file', j.blob, j.f.name));
+      chunk.forEach(j => { const c = cardOf.get(j.f); if(c){ c.classList.add('active'); const n = c.querySelector('.name'); if(n) n.textContent = '上传中'; } });
       try{
-        if(c) c.querySelector('.name').textContent = '上传中';
-        const savedFile = await uploadOne(f);
-        ok++; done++;
-        if(c){ c.remove(); }
-        files.unshift(savedFile);
-        setStatus('上传 '+done+'/'+total+'：'+f.name);
+        const r = await fetch('/api/album-upload-batch', { method: 'POST', body: fd });
+        const jr = await r.json().catch(()=>({}));
+        if(!r.ok || !jr.ok) throw new Error(jr.error || ('HTTP ' + r.status));
+        (jr.files || []).forEach(fl => {
+          const j = nameToJob.get(fl.clientName);
+          const c = j ? cardOf.get(j.f) : null;
+          if(c) c.remove();
+          files.unshift({ name: fl.name, rawUrl: fl.rawUrl, proxyUrl: fl.proxyUrl, type: fl.type, size: fl.size });
+          ok++;
+        });
+        (jr.failed || []).forEach(fx => {
+          const j = nameToJob.get(fx.clientName);
+          const c = j ? cardOf.get(j.f) : null;
+          if(c){ c.classList.remove('uploading','active'); c.classList.add('fail'); const n = c.querySelector('.name'); if(n) n.textContent = '失败'; }
+          fail++;
+        });
+        update();
       }catch(e){
-        fail++; done++;
-        if(c){ c.classList.remove('uploading'); c.classList.add('fail'); c.querySelector('.name').textContent = '上传失败'; }
-        setStatus('上传失败：'+f.name+' - '+e.message);
+        chunk.forEach(j => {
+          const c = cardOf.get(j.f);
+          if(c){ c.classList.remove('uploading','active'); c.classList.add('fail'); const n = c.querySelector('.name'); if(n) n.textContent = '失败'; }
+          fail++;
+        });
+        update();
+        setStatus('批次上传失败：' + e.message);
       }
     }
 
-    // 简易工作池：UPLOAD_CONCURRENCY 个 worker 从队列里抢任务
-    let cursor = 0;
-    async function worker(){
-      while(cursor < mediaIdx.length){
-        const i = mediaIdx[cursor++];
-        await task(i);
+    // 顺序提交各批次（每批内部 blob 并行），避免 ref 竞态
+    let ci = 0;
+    async function runner(){
+      while(ci < chunks.length){
+        const ch = chunks[ci++];
+        await sendChunk(ch);
       }
     }
-    await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, total) }, worker));
+    await Promise.all(Array.from({ length: Math.min(UP_FLIGHT, chunks.length) }, runner));
 
     // 统一重渲染（分页 + 排序后回到第一页，新上传的图立即可见）
     sortFiles();
     page = 0;
     render();
-    setStatus('完成：成功 '+ok+'，失败 '+fail);
+    setStatus('完成：成功 ' + ok + '，失败 ' + fail);
+    setTimeout(() => {
+      if(prog.bar) prog.bar.style.display = 'none';
+      if(prog.text) prog.text.style.display = 'none';
+    }, 2500);
   });
 
   // 手机端悬浮按钮复用同一文件选择器（点击即唤起系统相机/相册）

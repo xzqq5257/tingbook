@@ -28,9 +28,15 @@
 .album-cell .name{position:absolute;bottom:6px;left:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);padding:2px 6px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;pointer-events:none}
 .album-cell .del{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;backdrop-filter:blur(2px)}
 .album-cell:hover .del{display:flex}
-.album-cell.uploading{opacity:.7;pointer-events:none}
+/* 上传进度条 */
+#album-progress{height:6px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden;margin:10px 0 4px}
+#album-progress .fill{height:100%;width:0;background:linear-gradient(90deg,#4f9bff,#5ad1ff);transition:width .3s ease}
+#album-progress-text{font-size:12px;color:#9fb4d8;min-height:16px;margin-bottom:8px}
+/* 上传占位卡状态 */
+.album-cell.uploading{opacity:.5}
+.album-cell.uploading.active{opacity:1;box-shadow:0 0 0 2px #4f9bff}
 .album-cell.uploading .name{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px;white-space:nowrap}
-.album-cell.uploading.fail .name{background:rgba(180,40,40,.75)}
+.album-cell.uploading.fail .name{background:rgba(180,40,40,.8)}
 .album-cell.uploading::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:4px;font-size:12px}
 .album-cell.fail::after{content:"❌ 失败";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(192,40,40,.85);padding:4px 10px;border-radius:4px;font-size:12px}
 /* 置顶按钮（悬停显示；触屏设备常显）与置顶角标 */
