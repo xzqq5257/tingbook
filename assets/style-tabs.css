@@ -20,7 +20,8 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   html{ background:var(--bg); }
   body{ background:transparent!important; }
   #bg-layer{ position:fixed; inset:0; z-index:-2; background:var(--bg); opacity:.5;
-    background-size:cover; background-position:center; background-repeat:no-repeat; transition:background .3s, opacity .3s; }
+    background-size:cover!important; background-position:center!important; background-repeat:no-repeat!important; transition:background .3s, opacity .3s; }
+  #bg-layer-alt{ background-size:cover!important; background-position:center!important; background-repeat:no-repeat!important; }
   /* 读者页不再叠古风底图（以前 ::before 铺 assets/bg-girl.jpg 让整屏看起来像空白）*/
   /* 音乐栏：去暗渐变，统一亮色 */
   #tab-music{ background:var(--bg)!important; color:var(--fg)!important; }
