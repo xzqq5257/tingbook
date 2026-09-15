@@ -169,33 +169,45 @@ const ALBUM = (function(){
   }
 
   // 客户端压缩大照片
+  // ⚠️ 历史坑：ext 曾在 toBlob 回调内声明、却在调用参数里引用 → ReferenceError → Promise 永不 settle → 上传永久卡「处理中」
   async function compressIfNeeded(file){
     if(!file.type.startsWith('image/')) return file;
     if(file.size <= 1024*1024) return file; // ≤1MB 不压
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const url = URL.createObjectURL(file);
       const img = new Image();
+      let settled = false;
+      const done = (v) => { if(!settled){ settled = true; resolve(v); } };
       img.onload = () => {
-        const max = 1920;
-        let w = img.width, h = img.height;
-        if(Math.max(w,h) > max){
-          if(w>=h){ h = Math.round(h*max/w); w = max; }
-          else{ w = Math.round(w*max/h); h = max; }
-        }
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        c.toBlob((blob) => {
+        try{
+          const max = 1920;
+          let w = img.width, h = img.height;
+          if(Math.max(w,h) > max){
+            if(w>=h){ h = Math.round(h*max/w); w = max; }
+            else{ w = Math.round(w*max/h); h = max; }
+          }
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          // 输出格式提前算好（不要依赖回调内变量）
+          const keepPng = (file.type === 'image/png' && file.size < 300*1024);
+          const outType = keepPng ? 'image/png' : 'image/jpeg';
+          const base = (file.name || 'photo').replace(/\.[^.]+$/, '');
+          c.toBlob((blob) => {
+            URL.revokeObjectURL(url);
+            if(!blob){ done(file); return; }
+            const ext = keepPng ? 'png' : 'jpg';
+            done(new File([blob], base + '.' + ext, { type: blob.type || outType }));
+          }, outType, keepPng ? undefined : 0.85);
+        }catch(e){
           URL.revokeObjectURL(url);
-          if(!blob){ resolve(file); return; }
-          // 用 .jpg 输出（保留 png 仅在原图 ≤300KB 时），否则 JPEG 85%
-          const ext = (blob.type==='image/png' && file.size < 300*1024) ? 'png' : 'jpg';
-          const renamed = new File([blob], file.name.replace(/\.[^.]+$/, '') + (ext==='png'?'.png':'.jpg'), {type: blob.type});
-          resolve(renamed);
-        }, ext==='png' ? 'image/png' : 'image/jpeg', ext==='png' ? undefined : 0.85);
+          done(file);   // 压缩失败就传原图，绝不卡死
+        }
       };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.onerror = () => { URL.revokeObjectURL(url); done(file); };
+      // 兜底：个别浏览器大图解码时 onload/onerror 都不触发，6s 后放行原图
+      setTimeout(() => { URL.revokeObjectURL(url); done(file); }, 6000);
       img.src = url;
     });
   }
@@ -256,7 +268,7 @@ const ALBUM = (function(){
     function update(){
       const pct = total ? Math.round((ok+fail)/total*100) : 0;
       if(prog.fill) prog.fill.style.width = pct + '%';
-      if(prog.text) prog.text.textContent = '上传中 ' + (ok+fail) + '/' + total + '（成功 ' + ok + ' · 失败 ' + fail + '）';
+      if(prog.text) prog.text.textContent = ((ok+fail)===0 ? '处理中 ' : '上传中 ') + (ok+fail) + '/' + total + '（成功 ' + ok + ' · 失败 ' + fail + '）';
       if(prog.bar) prog.bar.style.display = (ok+fail < total) ? 'block' : 'none';
       if(prog.text) prog.text.style.display = (ok+fail < total) ? 'block' : 'none';
     }
@@ -289,7 +301,12 @@ const ALBUM = (function(){
       chunk.forEach(j => fd.append('file', j.blob, j.f.name));
       chunk.forEach(j => { const c = cardOf.get(j.f); if(c){ c.classList.add('active'); const n = c.querySelector('.name'); if(n) n.textContent = '上传中'; } });
       try{
-        const r = await fetch('/api/album-upload-batch', { method: 'POST', body: fd });
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 120000);   // 单批 120s 硬超时
+        let r;
+        try{
+          r = await fetch('/api/album-upload-batch', { method: 'POST', body: fd, signal: ctrl.signal });
+        } finally { clearTimeout(to); }
         const jr = await r.json().catch(()=>({}));
         if(!r.ok || !jr.ok) throw new Error(jr.error || ('HTTP ' + r.status));
         (jr.files || []).forEach(fl => {
