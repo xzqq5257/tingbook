@@ -38,8 +38,7 @@ listen-to-your-voice/   # 配套资料
                         # tts-generate.yml（TTS 生成）
 wrangler.toml           # pages_build_output_dir = "."（Pages 根 = repo 根）
 _headers                # 缓存策略：/assets/* 与 /photos/* immutable 1 年；/audio/* 7 天；HTML 不缓存
-ARCHITECTURE.md         # 架构文档
-DEPLOY_CHECKLIST.md     # 部署检查清单
+docs/                   # 文档：ARCHITECTURE.md（架构）、DEPLOY_CHECKLIST.md（部署清单）、葬花吟.txt（源文本）
 ```
 
 ## 关键外部依赖
