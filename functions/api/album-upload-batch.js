@@ -147,6 +147,42 @@ export async function onRequestPost(context) {
     }
   }));
 
+  // 同步更新 photos/manifest.json（相册列表的权威数据源），与图片同一 commit 一起提交
+  let manifest = [];
+  try {
+    const mr = await fetch(`${API}/repos/${owner}/${repo}/contents/photos/manifest.json`, {
+      headers: auth(token), cache: "no-store",
+    });
+    if (mr.ok) {
+      const mj = await mr.json();
+      const bin = atob(mj.content);
+      const mbytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) mbytes[i] = bin.charCodeAt(i);
+      const mtxt = new TextDecoder().decode(mbytes);
+      try { const arr = JSON.parse(mtxt); if (Array.isArray(arr)) manifest = arr; } catch (_) {}
+    }
+  } catch (_) {}
+  const have = new Set(manifest.map((m) => m.name));
+  for (const fl of results) {
+    if (!have.has(fl.name)) {
+      manifest.push({ name: fl.name, path: fl.path, size: fl.size, type: fl.type });
+      have.add(fl.name);
+    }
+  }
+  if (results.length) {
+    const mContent = JSON.stringify(manifest, null, 2);
+    try {
+      const mbr = await fetch(`${API}/repos/${owner}/${repo}/git/blobs`, {
+        method: "POST", headers: auth(token),
+        body: JSON.stringify({ content: b64(new TextEncoder().encode(mContent)), encoding: "base64" }),
+      });
+      if (mbr.ok) {
+        const mbsha = (await mbr.json()).sha;
+        entries.push({ path: PREFIX + "manifest.json", mode: "100644", type: "blob", sha: mbsha });
+      }
+    } catch (_) {}
+  }
+
   if (entries.length) {
     try {
       const tr = await fetch(`${API}/repos/${owner}/${repo}/git/trees`, {
@@ -159,7 +195,7 @@ export async function onRequestPost(context) {
       const cm = await fetch(`${API}/repos/${owner}/${repo}/git/commits`, {
         method: "POST",
         headers: auth(token),
-        body: JSON.stringify({ message: `album: batch add ${entries.length} media`, tree: treeSha, parents: [baseSha] }),
+        body: JSON.stringify({ message: `album: batch upload ${results.length} media (+manifest)`, tree: treeSha, parents: [baseSha] }),
       });
       if (!cm.ok) return bad("commit fail " + cm.status, 502);
       const commitSha = (await cm.json()).sha;

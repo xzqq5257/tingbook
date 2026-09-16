@@ -26,7 +26,7 @@ function classify(name) {
 export async function onRequestGet(context) {
   const origin = new URL(context.request.url).origin;
   try {
-    const r = await fetch(`${origin}/photos/manifest.json`);
+    const r = await fetch(`${origin}/photos/manifest.json`, { cache: "no-store", cf: { cacheTtl: 0 } });
     if (!r.ok) return bad("清单读取失败: " + r.status, 500);
     const list = await r.json();
     const files = (Array.isArray(list) ? list : [])
