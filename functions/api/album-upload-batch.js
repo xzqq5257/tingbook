@@ -148,20 +148,28 @@ export async function onRequestPost(context) {
   }));
 
   // 同步更新 photos/manifest.json（相册列表的权威数据源），与图片同一 commit 一起提交
+  // 注意：CF Workers 的 fetch 不支持 cache/cf 选项，只能用 _headers + 查询串炸弹控制缓存
   let manifest = [];
+  let manifestState = "unknown"; // fresh(首次无清单) | loaded(已读取) | error(读取失败，勿覆盖)
   try {
-    const mr = await fetch(`${API}/repos/${owner}/${repo}/contents/photos/manifest.json`, {
-      headers: auth(token), cache: "no-store",
-    });
+    const mr = await fetch(`${API}/repos/${owner}/${repo}/contents/photos/manifest.json`, { headers: auth(token) });
     if (mr.ok) {
       const mj = await mr.json();
-      const bin = atob(mj.content);
-      const mbytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) mbytes[i] = bin.charCodeAt(i);
-      const mtxt = new TextDecoder().decode(mbytes);
-      try { const arr = JSON.parse(mtxt); if (Array.isArray(arr)) manifest = arr; } catch (_) {}
+      if (mj && mj.content) {
+        const bin = atob(mj.content);
+        const mbytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) mbytes[i] = bin.charCodeAt(i);
+        const mtxt = new TextDecoder().decode(mbytes);
+        try { const arr = JSON.parse(mtxt); if (Array.isArray(arr)) { manifest = arr; manifestState = "loaded"; } } catch (_) { manifestState = "error"; }
+      } else {
+        manifestState = "error";
+      }
+    } else if (mr.status === 404) {
+      manifestState = "fresh";
+    } else {
+      manifestState = "error";
     }
-  } catch (_) {}
+  } catch (_) { manifestState = "error"; }
   const have = new Set(manifest.map((m) => m.name));
   for (const fl of results) {
     if (!have.has(fl.name)) {
@@ -169,7 +177,7 @@ export async function onRequestPost(context) {
       have.add(fl.name);
     }
   }
-  if (results.length) {
+  if (results.length && manifestState !== "error") {
     const mContent = JSON.stringify(manifest, null, 2);
     try {
       const mbr = await fetch(`${API}/repos/${owner}/${repo}/git/blobs`, {
