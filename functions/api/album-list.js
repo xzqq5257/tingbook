@@ -26,7 +26,8 @@ function classify(name) {
 export async function onRequestGet(context) {
   const origin = new URL(context.request.url).origin;
   try {
-    const r = await fetch(`${origin}/photos/manifest.json`, { cache: "no-store", cf: { cacheTtl: 0 } });
+    // 用查询串炸弹绕过 CF 边缘缓存（Workers 的 fetch 不支持 cache/cf 选项，且 /photos/manifest.json 已在 _headers 设为 max-age=0）
+    const r = await fetch(`${origin}/photos/manifest.json?t=${Date.now()}`, { headers: { "Cache-Control": "no-cache" } });
     if (!r.ok) return bad("清单读取失败: " + r.status, 500);
     const list = await r.json();
     const files = (Array.isArray(list) ? list : [])
