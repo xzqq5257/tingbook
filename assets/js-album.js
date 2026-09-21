@@ -1042,16 +1042,20 @@
                 src.onended = function(){ rvCurChar=-1; if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas(); fin(true); };
                 var st = ctx.currentTime;
                 src.start(0); window.__tingSrc = src;
-                // 光标跟读：AudioContext 无 timeupdate，用 rAF 按播放进度推字
-                var o0 = (hiSent>=0) ? (rvSentParaOff[hiSent]||null) : null;
-                var sl0 = o0 ? (o0.b-o0.a) : 0;
+                // 光标跟读：能量包络逐字时间轴（对齐真实语音节奏，停顿锚定标点），rAF 平滑推字
+                var seq0 = (hiSent>=0) ? rvSentSeq(hiSent) : null;
+                var tl0 = seq0 ? rvBuildTimes(seq0, buf) : null;
                 var du0 = buf.duration || 1;
+                var ptr = 0;
                 (function tick(){
                   if(done) return;
-                  if(o0 && sl0>0){
+                  if(seq0 && tl0){
                     var el = ctx.currentTime - st;
-                    var p = Math.min(1, Math.max(0, el/du0));
-                    var gi = o0.a + Math.min(sl0-1, Math.floor(p*sl0));
+                    var pr = (el/du0 - tl0.t0)/Math.max(1e-4, tl0.t1-tl0.t0);
+                    pr = Math.min(1, Math.max(0, pr));
+                    var ts = tl0.times;
+                    while(ptr<ts.length-1 && ts[ptr+1]<=pr) ptr++;
+                    var gi = seq0[ptr].g;
                     if(gi!==rvCurChar){
                       rvCurChar=gi;
                       // 跨页自动翻页，保证当前字始终可见（光标跟读不丢字）
@@ -1116,6 +1120,120 @@
     for(var k=0;k<rvLines.length;k++){ ln=rvLines[k]; if(ln.pi===pi && ln.gStart<=gpos && gpos<ln.gEnd) return rvPageOfLine[k]; }
     return -1;
   }
+
+  // ---- 卡拉OK对齐：音频能量包络 → 逐字时间轴（真实语音节奏，替代线性硬推） ----
+  var RV_PUNCT_RE=/[，。！？；：、…—,.!?;:“”‘’"']/;
+  // 包络分析：返回 {start,end(秒), pauses:[{t0,t1}]}；分析失败返回 null
+  function rvSpeechRegions(buf){
+    try{
+      var sr=buf.sampleRate||24000, ch0=buf.getChannelData(0), n=buf.length;
+      if(n<sr*0.2) return null;
+      var hop=Math.max(1,Math.round(sr*0.02)), fDur=hop/sr;
+      var m=Math.floor(n/hop); if(m<8) return null;
+      var env=new Float32Array(m), i, j;
+      for(i=0;i<m;i++){
+        var s=0, off=i*hop, cnt=0;
+        for(j=0;j<hop;j+=3){ var v=ch0[off+j]||0; s+=v*v; cnt++; }
+        env[i]=Math.sqrt(s/Math.max(1,cnt));
+      }
+      var sorted=Array.prototype.slice.call(env).sort(function(a,b){return a-b;});
+      var floorE=sorted[Math.floor(m*0.15)]||0;
+      var thr=Math.max(floorE*3.5, 0.018);
+      var t0=-1, t1=-1, voiced=0;
+      for(i=0;i<m;i++){ if(env[i]>thr){ t0=i; break; } }
+      for(i=m-1;i>=0;i--){ if(env[i]>thr){ t1=i; break; } }
+      if(t0<0||t1<=t0) return null;
+      for(i=t0;i<=t1;i++) if(env[i]>thr) voiced++;
+      if(voiced < (t1-t0)*0.25) return null;   // 有效人声占比过低 → 分析不可信
+      var minPause=Math.max(2, Math.round(0.12/fDur));
+      var pauses=[], run=0;
+      for(i=t0;i<=t1;i++){
+        if(env[i]<=thr){ run++; }
+        else { if(run>=minPause) pauses.push({t0:(i-run)*fDur, t1:i*fDur}); run=0; }
+      }
+      return { start:t0*fDur, end:(t1+1)*fDur, dur:n/sr, pauses:pauses };
+    }catch(e){ return null; }
+  }
+  // 句 si 的字符序列（g=段内全局坐标，w=时长权重：标点短）
+  function rvSentSeq(si){
+    var o=rvSentParaOff[si]; if(!o) return null;
+    var para=rvPars[rvSents[si].p]||'', seq=[], g;
+    for(g=o.a; g<o.b && g<para.length; g++){
+      var ch=para.charAt(g);
+      seq.push({g:g, ch:ch, w:RV_PUNCT_RE.test(ch)?0.25:1});
+    }
+    return seq.length?seq:null;
+  }
+  // 全书朗读顺序字符序列（si=句序号）
+  function rvCharSeq(){
+    var seq=[], si, k;
+    for(si=0; si<rvSents.length; si++){
+      var s2=rvSentSeq(si); if(!s2) continue;
+      for(k=0;k<s2.length;k++){ s2[k].si=si; seq.push(s2[k]); }
+    }
+    return seq;
+  }
+  // 由 buf 生成 seq 的逐字进度（0-1，相对人声区间）；返回 {times,t0,t1}（t0/t1 为相对总时长的起止比例）
+  function rvBuildTimes(seq, buf){
+    var n=seq?seq.length:0; if(!n) return null;
+    var i, cum=[], w=0;
+    for(i=0;i<n;i++){ cum.push(w); w+=seq[i].w; }
+    var totW=Math.max(w,1e-6);
+    function linear(){
+      var t=new Array(n);
+      for(i=0;i<n;i++) t[i]=cum[i]/totW;
+      return {times:t, t0:0, t1:1};
+    }
+    var reg=buf?rvSpeechRegions(buf):null;
+    if(!reg || reg.end-reg.start<0.06) return linear();
+    var span=reg.end-reg.start;
+    var bIdx=[]; for(i=0;i<n;i++) if(seq[i].w<1) bIdx.push(i);
+    var pz=reg.pauses.slice();
+    if(bIdx.length && pz.length>bIdx.length){   // 换气声等伪停顿：只留最长的前 N 个
+      pz.sort(function(a,b){return (b.t1-b.t0)-(a.t1-a.t0);});
+      pz=pz.slice(0,bIdx.length);
+      pz.sort(function(a,b){return a.t0-b.t0;});
+    }
+    // 停顿锚定到最近的标点（单调配对）
+    var anchors=[{ci:0, t:0}], bi=0, k;
+    if(bIdx.length){
+      for(k=0;k<pz.length && bi<bIdx.length;k++){
+        var pp=(pz[k].t0-reg.start)/span;
+        while(bi+1<bIdx.length &&
+              Math.abs((cum[bIdx[bi+1]]+seq[bIdx[bi+1]].w*0.5)/totW-pp) <
+              Math.abs((cum[bIdx[bi]]+seq[bIdx[bi]].w*0.5)/totW-pp)) bi++;
+        var t0n=Math.max(0,Math.min(1,(pz[k].t0-reg.start)/span));
+        var t1n=Math.max(t0n,Math.min(1,(pz[k].t1-reg.start)/span));
+        var last=anchors[anchors.length-1];
+        if(bIdx[bi]>last.ci && t0n>=last.t){ anchors.push({ci:bIdx[bi], t:t0n}); }
+        if(bIdx[bi]+1<n && t1n>=anchors[anchors.length-1].t){ anchors.push({ci:bIdx[bi]+1, t:t1n}); }
+        bi++;
+      }
+    }
+    var endT=(n>0 && anchors[anchors.length-1].ci<n)?1:null;
+    if(endT!==null) anchors.push({ci:n, t:1});
+    anchors.sort(function(a,b){return a.ci-b.ci;});
+    if(anchors.length<2 || anchors[anchors.length-1].ci!==n) return linear();
+    // 分段插值（按累计权重定位，标点占位被压缩）+ 单调钳位
+    var cumN=[]; for(i=0;i<n;i++) cumN.push(cum[i]/totW); cumN.push(1);
+    var t=new Array(n), j, prevT=0, prevC=0;
+    for(j=0;j<anchors.length && prevC<n;j++){
+      var a0=anchors[j]; if(a0.ci<=prevC) continue;
+      var p0=cumN[prevC], p1=cumN[a0.ci], pd=(p1>p0)?(p1-p0):1;
+      for(var c=prevC;c<a0.ci && c<n;c++){
+        var f=(cumN[c]-p0)/pd;
+        var tt=prevT+(a0.t-prevT)*f;
+        t[c]=tt<prevT?prevT:tt;
+      }
+      if(a0.ci<n){
+        var at=a0.t>prevT?a0.t:prevT;
+        t[a0.ci]=at; prevT=at;
+      }
+      prevC=a0.ci;
+    }
+    for(var c2=prevC;c2<n;c2++){ t[c2]=Math.max(prevT,1); prevT=t[c2]; }
+    return {times:t, t0:reg.dur>0?reg.start/reg.dur:0, t1:reg.dur>0?reg.end/reg.dur:1};
+  }
   // 直接播放预生成的静态音频（最可靠：不依赖系统 TTS / F5 后端，秒开）
   function rvPlayUrl(url){
     return new Promise(function(resolve){
@@ -1125,7 +1243,10 @@
       function fin(ok){ if(done) return; done=true; try{ a.pause(); }catch(e){} resolve(ok); }
       a.onended=function(){ rvCurChar=-1; rvTimeline=null; if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas(); fin(true); };
       a.onerror=function(){ rvTimeline=null; fin(false); };
-      var tl=null;
+      var tl=null;                       // 兜底：字数占比句时间线
+      var seqA=rvCharSeq();              // 全书朗读顺序字符序列
+      var tlA=null;                      // 精确：能量包络逐字时间轴
+      var ptr=0;
       a.addEventListener('loadedmetadata', function(){
         var total=0, i;
         for(i=0;i<rvSents.length;i++) total += Math.max(1,(rvSents[i].text||'').length);
@@ -1133,23 +1254,58 @@
         for(i=0;i<rvSents.length;i++){ tl[i]=acc; acc += Math.max(1,(rvSents[i].text||'').length)/total; }
         rvTimeline=tl;
       });
-      a.addEventListener('timeupdate', function(){
-        if(done || !tl || !a.duration || !rvSents.length) return;
-        var p=a.currentTime/a.duration;
-        var si=0;
-        for(var i=1;i<rvSents.length;i++){ if(tl[i]<=p) si=i; else break; }
-        if(si!==hiSent){ hiSent=si; rvCurChar=-1; if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas(); }
-        var o=rvSentParaOff[si]||null;
-        if(o){
-          var nxt=(si+1<rvSents.length)?tl[si+1]:1;
-          var sp=(p-tl[si])/Math.max(1e-6, nxt-tl[si]);
-          var slen=o.b-o.a;
-          var gi=o.a+Math.min(slen-1, Math.floor(sp*slen));
-          var pg=rvCharPage(rvSents[si].p, gi);
-          if(pg>=0 && pg!==rvIdx){ rvIdx=pg; rvRender(); return; }
-          if(gi!==rvCurChar){ rvCurChar=gi; if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas(); }
+      // 异步解码同一份音频做包络分析（只分析，不影响 <audio> 播放）；失败则回退字数估算
+      (function rvAnalyze(){
+        try{
+          var AC=window.AudioContext||window.webkitAudioContext;
+          if(!AC || !seqA.length) return;
+          fetch(url).then(function(r){ return r.arrayBuffer(); }).then(function(ab){
+            var ctx=window.__tingAC || new AC();
+            try{ if(!window.__tingAC) window.__tingAC=ctx; }catch(e2){}
+            ctx.decodeAudioData(ab, function(buf){
+              if(done) return;
+              var t=rvBuildTimes(seqA, buf);
+              if(t && t.times && t.times.length===seqA.length){ tlA=t; ptr=0; }
+            }, function(){});
+          }).catch(function(){});
+        }catch(e){}
+      })();
+      // rAF 光标：timeupdate 只有 ~4Hz（一次滞后 250ms），rAF 每帧推字，消除可视延迟
+      (function tick2(){
+        if(done) return;
+        if(a.duration){
+          var p=a.currentTime/a.duration;
+          if(tlA){
+            var pr=(p-tlA.t0)/Math.max(1e-4, tlA.t1-tlA.t0);
+            pr=Math.min(1,Math.max(0,pr));
+            var ts=tlA.times;
+            while(ptr<ts.length-1 && ts[ptr+1]<=pr) ptr++;
+            var cc=seqA[ptr], si2=cc.si, gi2=cc.g;
+            hiSent=si2;
+            if(gi2!==rvCurChar){
+              rvCurChar=gi2;
+              var pg=rvCharPage(rvSents[si2].p, gi2);
+              if(pg>=0 && pg!==rvIdx){ rvIdx=pg; rvRender(); }
+              else if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas();
+            }
+          } else if(tl){
+            var si=0;
+            for(var i=1;i<rvSents.length;i++){ if(tl[i]<=p) si=i; else break; }
+            if(si!==hiSent){ hiSent=si; rvCurChar=-1; if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas(); }
+            var o=rvSentParaOff[si]||null;
+            if(o){
+              var nxt=(si+1<rvSents.length)?tl[si+1]:1;
+              var sp=(p-tl[si])/Math.max(1e-6, nxt-tl[si]);
+              var slen=o.b-o.a;
+              var gi=o.a+Math.min(slen-1, Math.floor(sp*slen));
+              var pg2=rvCharPage(rvSents[si].p, gi);
+              if(pg2>=0 && pg2!==rvIdx){ rvIdx=pg2; rvRender(); }
+              else if(gi!==rvCurChar){ rvCurChar=gi; if(document.getElementById('reader-view').classList.contains('show')) rvRenderCanvas(); }
+            }
+          }
         }
-      });
+        requestAnimationFrame(tick2);
+      })();
       var p; try{ p=a.play(); }catch(e){ fin(false); return; }
       if(p&&p.catch){ p.catch(function(){ fin(false); }); }
     });
