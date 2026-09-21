@@ -871,8 +871,10 @@
     ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.font=rvCanvasFontStr(false);
     var col=rvThemeColors();
-    ctx.clearRect(0,0,W,H);   // 先清空再铺半透明纸色：无背景图时等效纯色，有则让 #rv-bgimg 照片透出
-    ctx.fillStyle=col.bgA||col.bg; ctx.fillRect(0,0,W,H);
+    ctx.clearRect(0,0,W,H);   // 有背景图时完全透明（照片层 #rv-bgimg 直接透出），无图时铺主题纯色
+    if(!document.getElementById('reader-view').classList.contains('rv-hasimg')){
+      ctx.fillStyle=col.bg; ctx.fillRect(0,0,W,H);
+    }
     ctx.textBaseline='alphabetic';
     var x0=rvMarginX, y=rvMarginY;
     var gap=Math.round(rvFs*0.6);

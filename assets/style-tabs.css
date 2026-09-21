@@ -72,10 +72,10 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   .bg-sw.active{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(184,144,47,.35); }
 
   /* ============ 阅读页背景同步（与全站相册轮换一致） ============ */
-  /* #rv-bgimg 是 #reader-view 的第一个子图层：铺当前背景照片（50% 透明，与首页一致）。
-     Canvas 画布本身铺半透明纸色（js-album.js rvThemeColors.bgA）叠在上面，保证正文可读。
+  /* #rv-bgimg 是 #reader-view 的第一个子图层：铺当前背景照片（全不透明，照片清晰可见）。
+     Canvas 有背景图时完全透明、只画文字（js-album.js rvRenderCanvas 按 rv-hasimg 判断）。
      用户选纯色预设 / 无照片时 #rv-hasimg 不加，层自动隐藏，阅读页保持纯色。 */
   #rv-bgimg{ position:absolute; inset:0; z-index:0; pointer-events:none;
     background-size:cover; background-position:center; background-repeat:no-repeat;
     opacity:0; transition:opacity .6s ease; }
-  #reader-view.rv-hasimg #rv-bgimg{ opacity:.5; }
+  #reader-view.rv-hasimg #rv-bgimg{ opacity:1; }
