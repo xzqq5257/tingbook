@@ -928,6 +928,21 @@
   }
   function rvRender(){ rvRenderCanvas(); }
 
+  // 阅读页背景同步：跟随全站背景图（相册 5 分钟轮换 / 用户自选图片；纯色预设则不铺图）
+  function rvSyncBg(){
+    var el=document.getElementById('rv-bgimg'); if(!el) return;
+    var url=(window.tbBgPhoto && window.tbBgPhoto())||'';
+    var rv=document.getElementById('reader-view');
+    if(url){
+      el.style.backgroundImage='url("'+url+'")';
+      if(rv) rv.classList.add('rv-hasimg');
+    }else{
+      el.style.backgroundImage='';
+      if(rv) rv.classList.remove('rv-hasimg');
+    }
+  }
+  document.addEventListener('tb:bgphoto', rvSyncBg);
+
   function openReader(id, title, autoListen){
     rvBookId=id; rvBookTitle=title; rvCache={}; rvInflight={};
     rvIsPoetry=!!RV_POETRY[id];
@@ -1304,6 +1319,21 @@
   var rotOn=false, rotTimer=null, rotLast=0, rotCur='', rotFail=0;
   var pool=[], poolAt=0, poolReq=null;
 
+  // —— 阅读页背景同步桥：把当前照片 URL 暴露给阅读器（window.tbBgPhoto），
+  //    并在每次换图后广播 tb:bgphoto 事件（阅读器监听后同步 #rv-bgimg）——
+  function bgPhotoNow(){
+    try{
+      var bi=cur.style.backgroundImage;
+      if(bi && bi!=='none'){
+        var m=bi.match(/url\(["']?([^"')]+)["']?\)/);
+        return m?m[1]:'';
+      }
+    }catch(e){}
+    return '';
+  }
+  function bgNotify(){ try{ document.dispatchEvent(new CustomEvent('tb:bgphoto')); }catch(e){} }
+  window.tbBgPhoto=bgPhotoNow;
+
   var presets=[
     {name:'暖纸', css:'linear-gradient(180deg,#f4f1ea,#efe9df)'},
     {name:'青瓷', css:'linear-gradient(160deg,#eaf3f0,#dcebe6)'},
@@ -1358,6 +1388,7 @@
       bgLayer.style.backgroundImage='none';
       bgLayer.style.opacity='1';
       if(persist){ try{localStorage.removeItem(BGK);}catch(e){} }
+      bgNotify();
       return;
     }
     if(val.indexOf('gradient')>=0){
