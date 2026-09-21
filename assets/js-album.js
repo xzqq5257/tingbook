@@ -740,9 +740,9 @@
     return (bold?'700 ':'400 ')+rvFs+'px '+fam;
   }
   function rvThemeColors(){
-    if(rvTheme==='sepia') return {bg:'#e9dcc0', fg:'#4a3f2a', accent:'#5a4326', hi:'rgba(90,67,38,.16)'};
-    if(rvTheme==='night') return {bg:'#14151b', fg:'#cfcfd8', accent:'#ec4141', hi:'rgba(236,65,65,.20)'};
-    return {bg:'#f5f0e6', fg:'#33302a', accent:'#b8902f', hi:'rgba(184,144,47,.18)'};
+    if(rvTheme==='sepia') return {bg:'#e9dcc0', bgA:'rgba(233,220,192,.66)', fg:'#4a3f2a', accent:'#5a4326', hi:'rgba(90,67,38,.16)'};
+    if(rvTheme==='night') return {bg:'#14151b', bgA:'rgba(20,21,27,.8)', fg:'#cfcfd8', accent:'#ec4141', hi:'rgba(236,65,65,.20)'};
+    return {bg:'#f5f0e6', bgA:'rgba(245,240,230,.66)', fg:'#33302a', accent:'#b8902f', hi:'rgba(184,144,47,.18)'};
   }
   // 标点禁则：行首不应出现的"闭/点号"；行尾不应出现的"开/句中点号"
   var RV_LS = '，。！？；：、…—”’）】〉》」』.,!?;:\'")]}>';
@@ -871,7 +871,8 @@
     ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.font=rvCanvasFontStr(false);
     var col=rvThemeColors();
-    ctx.fillStyle=col.bg; ctx.fillRect(0,0,W,H);
+    ctx.clearRect(0,0,W,H);   // 先清空再铺半透明纸色：无背景图时等效纯色，有则让 #rv-bgimg 照片透出
+    ctx.fillStyle=col.bgA||col.bg; ctx.fillRect(0,0,W,H);
     ctx.textBaseline='alphabetic';
     var x0=rvMarginX, y=rvMarginY;
     var gap=Math.round(rvFs*0.6);
@@ -941,7 +942,7 @@
       rvParse(text);
       var rv=document.getElementById('reader-view');
       document.getElementById('rv-title').textContent='《'+title+'》';
-      rv.classList.add('show'); rvApply();
+      rv.classList.add('show'); rvApply(); rvSyncBg();
       function doBuild(){
         rvBuild();
         var prog=null; try{ prog=JSON.parse(localStorage.getItem(RV_PR_K+id)||'null'); }catch(e){}
@@ -1327,6 +1328,7 @@
     bgLayer.style.backgroundImage='url("'+url+'")';
     bgLayer.style.opacity=IMG_OPACITY;
     void bgLayer.offsetWidth;   // 强制回流，避免下一次过渡被浏览器合并掉
+    bgNotify();
   }
 
   // 交叉淡入：新图在备用层由 0 → 50%，旧层同步 50% → 0
@@ -1346,6 +1348,7 @@
     setTimeout(function(){   // 收尾：淡出结束时旧层已到 0，直接清零不会产生跳变
       if(from!==cur){ from.style.transition='none'; from.style.opacity='0'; }
     }, 950);
+    bgNotify();
   }
 
   function applyBg(val, persist){
@@ -1367,6 +1370,7 @@
       bgLayer.style.opacity=IMG_OPACITY;
     }
     if(persist){ try{localStorage.setItem(BGK,val);}catch(e){} }
+    bgNotify();
   }
 
   // 「默认态」= 没存过，或存的正是内置兜底图（历史版本会把它落盘）

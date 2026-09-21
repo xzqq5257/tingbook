@@ -11,11 +11,11 @@
 | 模块 | 说明 |
 |---|---|
 | 📚 有声书 | **40 本**古典诗文 MP3（`audio/`），按需流式加载、断点续播（localStorage + IndexedDB 双后端）、倍速、定时关闭、同步字幕 |
-| 📖 电子书阅读器 | Canvas 逐字排版引擎（`js-reader.js`），字号/行距/边距/主题可调，诗词整本居中、散文首行缩进 |
-| 🖼 相册 | 26 张照片（`photos/` + `manifest.json` 清单），CF 边缘**静态直出** `/photos/*`（immutable 缓存 1 年），支持上传/删除 |
+| 📖 电子书阅读器 | Canvas 逐字排版引擎（`js-album.js`），字号/行距/边距/主题可调，诗词整本居中、散文首行缩进；**背景图与全站同步**（跟随相册轮换，半透明纸色蒙层保证正文可读） |
+| 🖼 相册 | 89 张照片（`photos/` + `manifest.json` 清单），CF 边缘**静态直出** `/photos/*`（immutable 缓存 1 年），支持上传/删除 |
 | 🎙 声音克隆 | 阿里云百炼 CosyVoice（`cosyvoice-v3.5-plus`）：上传参考音频 → 注册音色 → 实时合成「听我读」；「一键换声」直接改仓库参考音并清缓存 |
 | 👤 账号系统 | 登录/登出/会话（`functions/_lib/session.js`），密码门（siteGate）保护站点，登录日志 |
-| 🎨 界面 | 阅读 / 音乐 / 相册 / 我的 多栏布局，背景相册随机轮换（5 分钟交叉淡入） |
+| 🎨 界面 | 阅读 / 音乐 / 相册 / 我的 多栏布局，背景相册随机轮换（5 分钟交叉淡入），**阅读页背景同步**（同一张图，`#rv-bgimg` 图层 + `window.tbBgPhoto` 桥） |
 
 ## 目录结构
 
@@ -66,6 +66,8 @@ push 到 `main` 后三套并行，全部 success 才算真上线：
 # 增删相册图片后：更新 photos/ 目录，再重新生成 photos/manifest.json 并 push
 # 改 assets/ 下 css/js 后：同步更新 index.html 的 ?v= 令牌（否则用户拿到的还是一年缓存）
 # 改 functions/ 后：push 即生效（Functions 随 Pages 原子发布）
+# 阅读页背景同步机制：js-album.js 背景模块换图后广播 tb:bgphoto 事件，
+#   阅读器经 window.tbBgPhoto() 取当前图 URL 铺到 #rv-bgimg；Canvas 用半透明纸色（rvThemeColors.bgA）压住保证可读
 ```
 
 更多细节见 [ARCHITECTURE.md](docs/ARCHITECTURE.md) 与 [DEPLOY_CHECKLIST.md](docs/DEPLOY_CHECKLIST.md)。
