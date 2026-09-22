@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>倾听你的声音</title>
 <link rel="preload" as="image" href="assets/cover-art.webp" type="image/webp">
-<link rel="stylesheet" href="assets/style-main.css?v=20260921c">
-<link rel="stylesheet" href="assets/style-tabs.css?v=20260921c">
-<link rel="stylesheet" href="assets/style-reader.css?v=20260921c">
+<link rel="stylesheet" href="assets/style-main.css?v=20260922a">
+<link rel="stylesheet" href="assets/style-tabs.css?v=20260922a">
+<link rel="stylesheet" href="assets/style-reader.css?v=20260922a">
 </head>
 <body>
 <div id="siteGate">
@@ -19,7 +19,7 @@
     <div class="err" id="gateErr"></div>
   </div>
 </div>
-<script src="assets/js-gate.js?v=20260921c"></script>
+<script src="assets/js-gate.js?v=20260922a"></script>
 <div id="bg-layer"></div>
 <header class="cover">
   <div class="cover-art">
@@ -207,8 +207,12 @@
       </div>
       <div class="card-box">
         <h3>🎨 外观 · 背景</h3>
-        <p class="muted">默认背景每 <b>5 分钟</b>自动从相册随机换一张（50% 透明度）；选择预设或上传图片后自动停止轮换，点「恢复默认」可再次开启。自定义图片仅保存在本机浏览器，不上传服务器。</p>
+        <p class="muted">默认背景每 <b>5 分钟</b>自动从相册随机换一张（默认 50% 不透明度，下方滑杆可调）；选择预设或上传图片后自动停止轮换，点「恢复默认」可再次开启。自定义图片仅保存在本机浏览器，不上传服务器。</p>
         <div id="bg-presets" class="bg-presets"></div>
+        <div class="bg-op-row">
+          <label for="bg-opacity">背景不透明度 <span id="bg-op-val">50%</span></label>
+          <input id="bg-opacity" type="range" min="0" max="100" step="5" value="50">
+        </div>
         <div class="vrow" style="margin-top:12px">
           <label class="btn" style="display:inline-flex;align-items:center;cursor:pointer">
             🖼 上传背景图
@@ -339,10 +343,10 @@
   <button class="np-btn" id="np-btn">⏸</button>
   <div class="np-bar-prog" id="np-prog"></div>
 </div>
-<script src="assets/js-carousel.js?v=20260921c" defer></script>
-<script src="assets/js-reader.js?v=20260921c" defer></script>
-<script src="assets/js-album.js?v=20260921c" defer></script>
+<script src="assets/js-carousel.js?v=20260922a" defer></script>
+<script src="assets/js-reader.js?v=20260922a" defer></script>
+<script src="assets/js-album.js?v=20260922a" defer></script>
 
-<script src="assets/js-extra4.js?v=20260921c" defer></script>
+<script src="assets/js-extra4.js?v=20260922a" defer></script>
 </body>
 </html>

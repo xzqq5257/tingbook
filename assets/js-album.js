@@ -872,8 +872,15 @@
     ctx.font=rvCanvasFontStr(false);
     var col=rvThemeColors();
     ctx.clearRect(0,0,W,H);   // 有背景图时完全透明（照片层 #rv-bgimg 直接透出），无图时铺主题纯色
-    if(!document.getElementById('reader-view').classList.contains('rv-hasimg')){
+    var rvHasImg=document.getElementById('reader-view').classList.contains('rv-hasimg');
+    if(!rvHasImg){
       ctx.fillStyle=col.bg; ctx.fillRect(0,0,W,H);
+    }
+    // 有背景图时文字加柔光晕「浮」在照片上：深色字配白晕、夜间浅字配黑晕
+    var halo='', haloB=0;
+    if(rvHasImg){
+      halo=(rvTheme==='night')?'rgba(0,0,0,.9)':'rgba(255,255,255,.95)';
+      haloB=Math.max(4, Math.round(rvFs*0.25));
     }
     ctx.textBaseline='alphabetic';
     var x0=rvMarginX, y=rvMarginY;
@@ -914,7 +921,9 @@
         } else {
           ctx.fillStyle = (bold? col.accent : col.fg);
         }
+        if(halo){ ctx.shadowColor=halo; ctx.shadowBlur=haloB; }
         ctx.fillText(ch, cx, baseline);
+        if(halo) ctx.shadowBlur=0;   // 光晕只作用于文字，高亮条/下划线不加
         if(isCur){
           ctx.strokeStyle=col.accent; ctx.lineWidth=Math.max(2, Math.round(rvFs*0.12));
           ctx.beginPath(); ctx.moveTo(cx-0.5, baseline+rvFs*0.16); ctx.lineTo(cx+cw+0.5, baseline+rvFs*0.16); ctx.stroke();
@@ -937,6 +946,7 @@
     var rv=document.getElementById('reader-view');
     if(url){
       el.style.backgroundImage='url("'+url+'")';
+      el.style.opacity=(window.tbBgOpacity && window.tbBgOpacity())||'1';   // 与首页同一不透明度
       if(rv) rv.classList.add('rv-hasimg');
     }else{
       el.style.backgroundImage='';
@@ -1459,7 +1469,15 @@
   if(!bgLayer) return;
   var BGK='tingbook_bg_v1';
   var BUILTIN_BG='assets/bg-girl.webp';  // 内置兜底底图（相册取不到 / 首屏未就绪时用）
-  var IMG_OPACITY='.5';                  // 图片背景统一 50% 透明
+  var OPK='tingbook_bg_op';              // 背景图片不透明度（%，设置页滑杆可调，默认 50）
+  var IMG_OPACITY='.5';                  // 兜底默认 50%，实际以 getBgOp() 为准
+  function getBgOp(){
+    var v=NaN;
+    try{ v=parseInt(localStorage.getItem(OPK),10); }catch(e){}
+    if(isNaN(v)||v<0||v>100) v=50;
+    return (v/100).toFixed(2);
+  }
+  window.tbBgOpacity=getBgOp;            // 阅读器读取同一透明度
   var ROTATE_MS=5*60*1000;               // 轮换间隔：5 分钟
   var LIST_TTL=30*60*1000;               // 相册列表缓存 30 分钟（避免每轮都打 GitHub API）
   var FIRST_DELAY=2000;                  // 首屏稳定后尽快给第一张
@@ -1514,7 +1532,7 @@
     resetLayers();
     bgLayer.style.background='';
     bgLayer.style.backgroundImage='url("'+url+'")';
-    bgLayer.style.opacity=IMG_OPACITY;
+    bgLayer.style.opacity=getBgOp();
     void bgLayer.offsetWidth;   // 强制回流，避免下一次过渡被浏览器合并掉
     bgNotify();
   }
@@ -1529,7 +1547,7 @@
     void other.offsetWidth;
     other.style.transition='opacity .9s ease';
     cur.style.transition='opacity .9s ease';
-    other.style.opacity=IMG_OPACITY;
+    other.style.opacity=getBgOp();
     cur.style.opacity='0';
     var from=cur;
     cur=other;
@@ -1556,7 +1574,7 @@
     }else{
       bgLayer.style.background='';
       bgLayer.style.backgroundImage='url("'+val+'")';
-      bgLayer.style.opacity=IMG_OPACITY;
+      bgLayer.style.opacity=getBgOp();
     }
     if(persist){ try{localStorage.setItem(BGK,val);}catch(e){} }
     bgNotify();
@@ -1671,6 +1689,25 @@
     startRotate();
     setMsg('已恢复默认：每 5 分钟自动从相册随机换一张');
   };
+
+  // ---------- 背景不透明度滑杆（0-100%，同步首页图层与阅读页 #rv-bgimg） ----------
+  var opSlider=document.getElementById('bg-opacity');
+  function applyBgOp(v){
+    try{ localStorage.setItem(OPK, String(v)); }catch(e){}
+    var o=(v/100).toFixed(2);
+    var bi=bgLayer.style.backgroundImage, ai=alt.style.backgroundImage;
+    if(bi && bi!=='none') bgLayer.style.opacity=o;   // 纯色/渐变预设透明度恒为 1，不动
+    if(ai && ai!=='none') alt.style.opacity=o;
+    var lab=document.getElementById('bg-op-val'); if(lab) lab.textContent=v+'%';
+    bgNotify();                                      // 阅读器监听 tb:bgphoto 后按新透明度重铺
+  }
+  if(opSlider){
+    var opSaved=NaN;
+    try{ opSaved=parseInt(localStorage.getItem(OPK),10); }catch(e){}
+    if(!isNaN(opSaved) && opSaved>=0 && opSaved<=100) opSlider.value=opSaved;
+    var opLab=document.getElementById('bg-op-val'); if(opLab) opLab.textContent=opSlider.value+'%';
+    opSlider.addEventListener('input', function(){ applyBgOp(parseInt(opSlider.value,10)||0); });
+  }
 
   // ---------- 启动 ----------
   var saved='';

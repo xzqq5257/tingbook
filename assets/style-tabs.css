@@ -71,6 +71,18 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   .bg-sw:hover{ border-color:var(--accent); }
   .bg-sw.active{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(184,144,47,.35); }
 
+  /* 背景不透明度滑杆 */
+  .bg-op-row{ margin-top:12px; }
+  .bg-op-row label{ display:flex; justify-content:space-between; font-size:13px; color:#5b4a2a; font-weight:600; margin-bottom:6px; }
+  .bg-op-row label span{ color:var(--accent); }
+  .bg-op-row input[type=range]{ width:100%; height:4px; -webkit-appearance:none; appearance:none;
+    background:linear-gradient(90deg,var(--accent),var(--line)); border-radius:2px; outline:none; cursor:pointer; }
+  .bg-op-row input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none;
+    width:18px; height:18px; border-radius:50%; background:var(--accent); border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.25); }
+  .bg-op-row input[type=range]::-moz-range-thumb{ width:16px; height:16px; border-radius:50%;
+    background:var(--accent); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25); }
+
   /* ============ 阅读页背景同步（与全站相册轮换一致） ============ */
   /* #rv-bgimg 是 #reader-view 的第一个子图层：铺当前背景照片（全不透明，照片清晰可见）。
      Canvas 有背景图时完全透明、只画文字（js-album.js rvRenderCanvas 按 rv-hasimg 判断）。
