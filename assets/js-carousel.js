@@ -1,7 +1,9 @@
 /* === 三栏 Tab + 账号 + 音色仓库（听我读） === */
 (function(){
   var tabs=document.querySelectorAll('#main-tabs .tab-btn');
-  var panels={reading:document.getElementById('tab-reading'),music:document.getElementById('tab-music'),album:document.getElementById('tab-album'),mine:document.getElementById('tab-mine')};
+  // panels 按 data-tab 动态解析（tab-<name>），新增标签页无需改这里
+  var panels={};
+  tabs.forEach(function(b){var n=b.dataset.tab;if(n)panels[n]=document.getElementById('tab-'+n);});
   function showTab(name){
     tabs.forEach(function(b){b.classList.toggle('active',b.dataset.tab===name);});
     Object.keys(panels).forEach(function(k){if(panels[k])panels[k].classList.toggle('active',k===name);});
