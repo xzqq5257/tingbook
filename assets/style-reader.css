@@ -1,3 +1,15 @@
+/* ============================================================
+   style-reader.css · 密码门 + 相册网格 + 电子画册（名字是历史遗留，
+   ⚠ 它装的其实不是「文本阅读器」样式 —— 阅读器样式内嵌在 js-album.js
+   的 Canvas 主题里，页面框架样式在 style-tabs.css #reader-view 分区）
+   ──────────────────────────────────────────────────────────────
+   实际分区（自上而下）：
+   1. #siteGate 密码门        全屏遮罩 + 居中卡片（红按钮是它）
+   2. .album-* 相册网格       工具条 / 九宫格 / 上传进度 / 悬浮按钮
+   3. #album-viewer 电子画册  全屏翻页查看器：顶栏 / 左右热区 /
+      底部工具栏 / 缩略图抽屉 / 页码跳转 / .pager 页码
+   ⚠ 改后必须同步升 index.html 的 ?v= 令牌。
+   ============================================================ */
 #siteGate{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1b1f2a,#2a2f3e);font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif}
 #siteGate .box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:32px 28px;width:min(86vw,320px);text-align:center;color:#eee}
 #siteGate h1{font-size:18px;margin:0 0 6px;font-weight:600}

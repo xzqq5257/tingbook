@@ -1,3 +1,9 @@
+/* === js-gate.js · 密码门（全站唯一入口） ===
+   【逻辑】密码正确 → sessionStorage 记时间戳（ting_gate_ts）→ 1 小时后重弹；
+          每次解锁 POST /api/login-log 留档（时间/IP/归属地/设备）。
+   【耦合】SITE_PASSWORD 与 functions/api/*.js（notes.js 等）的 k 参数校验
+          共用同一个密码 —— 改这里必须同步改后端，否则云端功能全部 403。
+   assets 静态资源：改后记得升 index.html 的 ?v= 令牌。 */
 (function(){
   var SITE_PASSWORD = "1396788686";
   var KEY = "ting_gate_ts";            // 解锁时间戳(ms)

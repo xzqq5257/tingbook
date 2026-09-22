@@ -1,3 +1,17 @@
+/* ============================================================
+   style-tabs.css · 页面框架 + 电台首页 + 设置页 + 情感模块样式
+   ──────────────────────────────────────────────────────────────
+   分区自上而下（均以「/* ==== … ==== *​/」注释条分隔，搜关键字直达）：
+   1. 三栏 Tab 框架          .tabs / .tab-btn / .tab-panel
+   2. 电台（tab-music）      .m-hero / .album-grid / .ltyv-section（听我读）
+   3. 相册工具条（tab-album）.album-toolbar / #album-progress
+   4. 我的 · 音色仓库（tab-mine）.card-box / .voice-item
+   5. 我的 · 外观设置        .bg-presets / .bg-op-row（背景不透明度滑杆）
+   6. 阅读页背景同步         #rv-bgimg（照片层，rv-hasimg 时全不透明）
+   7. 情感模块 js-heart.js   .greet 问候条 / .letter-card 信笺 /
+      #missyou-layer 想你模式 / #bday-overlay 生日覆盖层
+   ⚠ 改后必须同步升 index.html 的 ?v= 令牌（immutable 一年缓存）。
+   ============================================================ */
 /* 三栏 Tab 框架 */
 .tabs{display:flex;gap:8px;padding:10px 14px 0;flex-wrap:wrap}
 .tab-btn{padding:8px 18px;border:1px solid #cbb892;border-bottom:none;border-radius:10px 10px 0 0;background:#f3ead6;color:#5b4a2a;cursor:pointer;font-size:15px;font-weight:600}
@@ -145,3 +159,12 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
   .bday-close{ margin-top:18px; border:1px solid #c98aa8; background:transparent; color:#7a3b5e;
     padding:8px 22px; border-radius:20px; cursor:pointer; font-size:13px; }
   .bday-close:hover{ background:#c98aa8; color:#fff; }
+
+  /* 彩蛋：爱心雨 + 悄悄话（js-heart.js bindSmile） */
+  .smile-heart{ position:fixed; top:-30px; z-index:400; pointer-events:none;
+    animation:smileFall 3.2s ease-in forwards; }
+  @keyframes smileFall{ to{ transform:translateY(112vh) rotate(28deg); opacity:.08; } }
+  .smile-toast{ position:fixed; left:50%; bottom:12vh; transform:translateX(-50%);
+    z-index:400; max-width:80vw; background:rgba(42,33,19,.9); color:#ffe9c2;
+    font-size:14px; padding:10px 20px; border-radius:20px; pointer-events:none;
+    box-shadow:0 6px 24px rgba(0,0,0,.25); animation:greetIn .4s ease; }

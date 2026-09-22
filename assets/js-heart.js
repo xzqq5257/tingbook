@@ -3,7 +3,10 @@
    2. 「给她的话」信笺：云端 KV 存储（/api/notes）+ 本机缓存兜底
    3. 夜间「想你」模式：暗色氛围 + 她的名字淡淡浮在背景上
    4. 纪念日：农历 11 月 29 日生日 —— 全站蛋糕 + 生日快乐歌（WebAudio 合成，无需音频文件）
-   全部 ES5，IIFE，不依赖任何库。 */
+   5. 小彩蛋（bindSmile）：切标签页标题说话 / 连点大标题飘爱心 +
+      悄悄话 / 控制台留言 —— 全部零侵入、可失败（try/catch 包裹）
+   测试钩子：window.__tbHeart（solarToLunar / isBday）
+   全部 ES5，IIFE，不依赖任何库。改后升 index.html ?v= 令牌。 */
 (function(){
   "use strict";
   var SITE_K = "1396788686";          // 与 js-gate.js 一致
@@ -259,11 +262,74 @@
     showBday();
   }
 
+  /* ---------- 5. 小彩蛋：如果有一天，她打开这个页面 ---------- */
+  function bindSmile(){
+    var baseTitle = document.title;
+    // ① 切走/切回浏览器标签页时，标题轻轻说一句话
+    try{
+      document.addEventListener("visibilitychange", function(){
+        if(document.hidden){
+          document.title = "别走嘛…（小声）";
+        } else {
+          document.title = "欢迎回来 ♪ 诗都给你读好了";
+          setTimeout(function(){ document.title = baseTitle; }, 2600);
+        }
+      });
+    }catch(e){}
+    // ② 连点首页大标题 5 次：飘一阵爱心 + 一句悄悄话
+    var taps = 0, tapTimer = null;
+    var WHISPERS = [
+      "别戳啦，诗都排在下面等你翻牌呢～",
+      "再戳一下，我就把整本书读给你听（认真的）",
+      "诶，被你发现这里可以戳了？",
+      "戳这么多下，是想我了吧。",
+      "好啦好啦，全站都归你戳。"
+    ];
+    function heartRain(){
+      try{
+        for(var i = 0; i < 12; i++){
+          var h = document.createElement("span");
+          h.className = "smile-heart";
+          h.textContent = ["💛","🧡","💗","💜"][i % 4];
+          h.style.left = (15 + Math.random() * 70) + "vw";
+          h.style.animationDelay = (Math.random() * 0.6) + "s";
+          h.style.fontSize = (14 + Math.random() * 16) + "px";
+          document.body.appendChild(h);
+          (function(el){ setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 3800); })(h);
+        }
+      }catch(e){}
+    }
+    var t = document.querySelector(".cover-head h1");
+    if(t){
+      t.addEventListener("click", function(){
+        taps++;
+        clearTimeout(tapTimer);
+        tapTimer = setTimeout(function(){ taps = 0; }, 1600);
+        if(taps >= 5){
+          taps = 0;
+          heartRain();
+          var tip = document.createElement("div");
+          tip.className = "smile-toast";
+          tip.textContent = WHISPERS[Math.floor(Math.random() * WHISPERS.length)];
+          document.body.appendChild(tip);
+          setTimeout(function(){ if(tip.parentNode) tip.parentNode.removeChild(tip); }, 3200);
+        }
+      });
+    }
+    // ③ 控制台留言：留给那个好奇心重的人
+    try{
+      console.log("%c嘿 💛", "color:#b8902f;font-size:28px;font-weight:bold");
+      console.log("%c你居然打开了控制台 —— 好奇心重的人，一般都很好看。", "color:#7a6a4a;font-size:13px");
+      console.log("%c别研究代码啦。诗都读好了，信都写好了，背景图都挑好了，\n就等你回来。去「💌 给她的话」翻一翻吧。", "color:#9a8a6a;font-size:12px");
+    }catch(e){}
+  }
+
   /* ---------- 启动 ---------- */
   function boot(){
     bindLetters();
     bindMy();
     bindBday();
+    bindSmile();
   }
   // 测试/调试钩子（农历换算与生日判定）
   window.__tbHeart = { solarToLunar: solarToLunar, isBday: isBday };

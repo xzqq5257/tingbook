@@ -1,4 +1,9 @@
-/* === 三栏 Tab + 账号 + 音色仓库（听我读） === */
+/* === js-carousel.js · 标签页切换 + 音色仓库（我的页） ===
+   【标签页】panels 按 data-tab 动态解析（#tab-<name>）——
+            新增标签页只需改 index.html，这里不用动。
+   【音色仓库】/api/voices 系列：上传参考音 / 试听 / 设默认 / 删除，
+              「听我读」的克隆音下拉框读同一份列表。
+   assets 静态资源：改后记得升 index.html 的 ?v= 令牌。 */
 (function(){
   var tabs=document.querySelectorAll('#main-tabs .tab-btn');
   // panels 按 data-tab 动态解析（tab-<name>），新增标签页无需改这里
