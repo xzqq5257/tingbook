@@ -91,3 +91,57 @@ input.inp,textarea.inp,select.inp{padding:8px 10px;border:1px solid #cbb892;bord
     background-size:cover; background-position:center; background-repeat:no-repeat;
     opacity:0; transition:opacity .6s ease; }
   #reader-view.rv-hasimg #rv-bgimg{ opacity:1; }
+
+  /* ============ 情感模块（js-heart.js） ============ */
+  /* 问候条：首页 appbar 右侧 + 阅读页顶部 */
+  .greet{ margin-left:auto; font-size:13px; color:var(--nc); letter-spacing:.5px; white-space:nowrap;
+    opacity:.85; animation:greetIn .8s ease; }
+  .rv-greet{ position:absolute; top:52px; left:0; right:0; text-align:center; font-size:12px;
+    color:var(--nc); letter-spacing:1px; opacity:.6; pointer-events:none; z-index:5;
+    animation:greetIn .8s ease; }
+  @keyframes greetIn{ from{ opacity:0; transform:translateY(-4px);} to{ opacity:.85; transform:none;} }
+
+  /* 「给她的话」信笺 */
+  .letters-editor{ margin:10px 14px; padding:14px; border:1px solid rgba(184,144,47,.25);
+    border-radius:12px; background:rgba(255,255,255,.55); }
+  .letter-list{ margin:6px 14px 20px; display:flex; flex-direction:column; gap:10px; }
+  .letter-card{ padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.6);
+    border:1px solid rgba(184,144,47,.2); box-shadow:0 1px 4px rgba(90,67,38,.06);
+    animation:greetIn .5s ease; }
+  .letter-text{ font-size:14px; line-height:1.8; color:#4a3f2a; white-space:pre-wrap; }
+  .letter-meta{ display:flex; justify-content:space-between; align-items:center; margin-top:8px;
+    font-size:11px; color:#9a8a6a; }
+  .letter-del{ border:0; background:transparent; cursor:pointer; font-size:13px; opacity:.55; }
+  .letter-del:hover{ opacity:1; }
+
+  /* 夜间「想你」模式：全屏氛围层 + 她的名字 */
+  body.missyou #bg-layer{ filter:brightness(.55) saturate(.8); }
+  #missyou-layer{ position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0;
+    transition:opacity 1.2s ease; background:radial-gradient(ellipse at 50% 70%, rgba(30,20,60,.35), rgba(8,6,20,.5)); }
+  body.missyou #missyou-layer{ opacity:1; }
+  #missyou-layer .my-name{ position:absolute; left:50%; top:38%; transform:translate(-50%,-50%);
+    font-size:min(17vw,120px); font-weight:300; letter-spacing:.18em; color:#e8e2ff;
+    text-shadow:0 0 18px rgba(167,139,255,.8), 0 0 60px rgba(124,92,255,.5);
+    opacity:.14; animation:myFloat 9s ease-in-out infinite; white-space:nowrap; }
+  #missyou-layer .my-sub{ position:absolute; left:50%; top:52%; transform:translate(-50%,-50%);
+    font-size:14px; letter-spacing:1.2em; text-indent:1.2em; color:#cfc6ff; opacity:.28;
+    animation:myFloat 9s ease-in-out infinite reverse; }
+  @keyframes myFloat{ 0%,100%{ transform:translate(-50%,-50%) scale(1);} 50%{ transform:translate(-50%,-53%) scale(1.03);} }
+
+  /* 生日（农历 11 月 29 日）覆盖层 */
+  #bday-overlay{ position:fixed; inset:0; z-index:300; display:flex; align-items:center; justify-content:center;
+    background:rgba(12,8,24,.55); backdrop-filter:blur(3px); opacity:0; transition:opacity .8s ease; }
+  #bday-overlay.on{ opacity:1; }
+  .bday-box{ text-align:center; padding:38px 44px; border-radius:20px;
+    background:linear-gradient(160deg, rgba(255,246,230,.96), rgba(255,230,238,.92));
+    box-shadow:0 12px 50px rgba(60,20,60,.35); animation:bdayPop .7s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes bdayPop{ from{ transform:scale(.7); opacity:0;} to{ transform:scale(1); opacity:1;} }
+  .bday-cake{ font-size:84px; line-height:1; cursor:pointer; user-select:none;
+    animation:cakeBounce 1.6s ease-in-out infinite; }
+  @keyframes cakeBounce{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-10px);} }
+  .bday-title{ margin-top:14px; font-size:22px; font-weight:700; color:#7a3b5e; }
+  .bday-sub{ margin-top:6px; font-size:13px; color:#9a6a8a; }
+  .bday-hint{ margin-top:10px; font-size:12px; color:#b08aa0; }
+  .bday-close{ margin-top:18px; border:1px solid #c98aa8; background:transparent; color:#7a3b5e;
+    padding:8px 22px; border-radius:20px; cursor:pointer; font-size:13px; }
+  .bday-close:hover{ background:#c98aa8; color:#fff; }

@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>倾听你的声音</title>
 <link rel="preload" as="image" href="assets/cover-art.webp" type="image/webp">
-<link rel="stylesheet" href="assets/style-main.css?v=20260922a">
-<link rel="stylesheet" href="assets/style-tabs.css?v=20260922a">
-<link rel="stylesheet" href="assets/style-reader.css?v=20260922a">
+<link rel="stylesheet" href="assets/style-main.css?v=20260922b">
+<link rel="stylesheet" href="assets/style-tabs.css?v=20260922b">
+<link rel="stylesheet" href="assets/style-reader.css?v=20260922b">
 </head>
 <body>
 <div id="siteGate">
@@ -19,7 +19,7 @@
     <div class="err" id="gateErr"></div>
   </div>
 </div>
-<script src="assets/js-gate.js?v=20260922a"></script>
+<script src="assets/js-gate.js?v=20260922b"></script>
 <div id="bg-layer"></div>
 <header class="cover">
   <div class="cover-art">
@@ -92,11 +92,13 @@
 </header>
 <header class="appbar">
   <div class="brand">倾听你的声音<small>用你最熟悉的声音，读一切</small></div>
+  <span id="greet-home" class="greet" aria-live="polite"></span>
 </header>
 <nav class="tabs" id="main-tabs">
   <button class="tab-btn active" data-tab="reading"><span class="ic">📖</span>阅读</button>
   <button class="tab-btn" data-tab="music"><span class='ic'><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="rv-radio-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB74D"/><stop offset="1" stop-color="#FF6E6E"/></linearGradient></defs><path d="M2.6 6.2a9.5 9.5 0 0 1 0 11.6" stroke="#FFB74D" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M5.4 8.4a5.5 5.5 0 0 1 0 7.2" stroke="#FF8A65" stroke-width="1.8" stroke-linecap="round" fill="none"/><line x1="11.2" y1="7.8" x2="11.2" y2="5.4" stroke="#FF6E6E" stroke-width="1.6" stroke-linecap="round"/><rect x="9.8" y="7.8" width="11.6" height="11" rx="2.4" fill="url(#rv-radio-g)"/><circle cx="13.2" cy="13.4" r="2.4" fill="#fff"/><circle cx="13.2" cy="13.4" r="1" fill="#FF6E6E"/><rect x="16.6" y="10" width="3.6" height="1.1" rx="0.55" fill="#fff" opacity=".85"/><rect x="16.6" y="12" width="3" height="1.1" rx="0.55" fill="#fff" opacity=".7"/></svg></span>电台</button>
   <button class="tab-btn" data-tab="album"><span class="ic">📷</span>相册</button>
+  <button class="tab-btn" data-tab="letters"><span class="ic">💌</span>给她的话</button>
   <button class="tab-btn" data-tab="mine"><span class="ic">👤</span>我的</button>
 </nav>
 <main>
@@ -188,6 +190,19 @@
   <button id="album-fab" class="album-fab" type="button" title="上传照片/视频" aria-label="上传照片或视频">📷</button>
 </section>
 
+<section id="tab-letters" class="tab-panel">
+  <div class="sec-head">💌 给她的话</div>
+  <div class="letters-editor">
+    <p class="hint">一个只属于你俩的文字角落：信、诗、碎念、随笔，随时写下，存进云端。想她的时候回来看看。</p>
+    <textarea id="letter-input" class="inp" rows="5" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="写给小猪猪你个胖崽的话……"></textarea>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <button id="letter-save" class="play-btn">✉ 写进云端</button>
+      <span id="letter-msg" class="meta"></span>
+    </div>
+  </div>
+  <div id="letter-list" class="letter-list"></div>
+</section>
+
 <section id="tab-mine" class="tab-panel">
   <div class="mine-wrap">
         <div id="mine-dash" class="hidden">
@@ -214,6 +229,10 @@
           <input id="bg-opacity" type="range" min="0" max="100" step="5" value="50">
         </div>
         <div class="vrow" style="margin-top:12px">
+          <button id="missyou-toggle" class="btn">🌙 夜间「想你」模式：关</button>
+          <span class="muted">深夜专属：暗色氛围，她的名字淡淡浮在背景上</span>
+        </div>
+        <div class="vrow" style="margin-top:12px">
           <label class="btn" style="display:inline-flex;align-items:center;cursor:pointer">
             🖼 上传背景图
             <input id="bg-upload" type="file" accept="image/*" style="display:none">
@@ -232,6 +251,7 @@
     <div class="rv-title" id="rv-title"></div>
     <button id="rv-aa" class="rv-ico">Aa</button>
   </div>
+  <div id="greet-reader" class="rv-greet" aria-live="polite"></div>
   <div class="rv-progress"><i id="rv-bar"></i></div>
   <div class="rv-stage"><canvas id="rv-canvas" class="rv-canvas"></canvas></div>
   <div class="rv-zones">
@@ -343,10 +363,11 @@
   <button class="np-btn" id="np-btn">⏸</button>
   <div class="np-bar-prog" id="np-prog"></div>
 </div>
-<script src="assets/js-carousel.js?v=20260922a" defer></script>
-<script src="assets/js-reader.js?v=20260922a" defer></script>
-<script src="assets/js-album.js?v=20260922a" defer></script>
+<script src="assets/js-carousel.js?v=20260922b" defer></script>
+<script src="assets/js-reader.js?v=20260922b" defer></script>
+<script src="assets/js-album.js?v=20260922b" defer></script>
 
-<script src="assets/js-extra4.js?v=20260922a" defer></script>
+<script src="assets/js-extra4.js?v=20260922b" defer></script>
+<script src="assets/js-heart.js?v=20260922b" defer></script>
 </body>
 </html>
