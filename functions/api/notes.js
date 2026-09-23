@@ -60,7 +60,7 @@ export async function onRequestGet({ request, env }) {
     })
   );
   const list = records.filter(Boolean);
-  return json({ ok: true, count: list.length, records: list });
+  return json({ ok: true, count: list.length, rawKeys: keys.length, records: list });
 }
 
 export async function onRequestPost({ request, env }) {
