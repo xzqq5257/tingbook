@@ -52,7 +52,8 @@ export async function onRequestGet({ request, env }) {
   keys.sort((a, b) => (a.name < b.name ? 1 : -1)); // 新→旧
   const recent = keys.slice(0, MAX_NOTES);
   const records = await Promise.all(
-    recent.map(async (name) => {
+    recent.map(async (k) => {
+      const name = k.name;   // ⚠️ kv.list 返回的是 {name,...} 对象，get/delete 必须传 .name 字符串
       try {
         const rec = JSON.parse(await kv.get(name));
         return rec && typeof rec.text === "string" ? { id: name, t: rec.t || 0, text: rec.text } : null;
@@ -60,7 +61,7 @@ export async function onRequestGet({ request, env }) {
     })
   );
   const list = records.filter(Boolean);
-  return json({ ok: true, count: list.length, rawKeys: keys.length, records: list });
+  return json({ ok: true, count: list.length, records: list });
 }
 
 export async function onRequestPost({ request, env }) {
