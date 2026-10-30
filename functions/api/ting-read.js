@@ -72,6 +72,35 @@ export const onRequestPost = async ({ request, env }) => {
   }
 };
 
+// 带重试的 fetch：Cloudflare Worker 出网到阿里云（MaaS 接口 / OSS 临时音频地址）
+// 偶发空响应会被 Cloudflare 标记成 520/502/504 等，重试通常即可恢复。
+// 用户主动 Abort 时（signal 触发）立即抛出，不重试。
+function sleep(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
+async function fetchWithRetry(url, init, opts) {
+  const retries = (opts && opts.retries != null) ? opts.retries : 3;
+  const retryStatuses = (opts && opts.retryStatuses) || [502, 503, 504, 520, 521, 522, 523, 524];
+  const backoff = (opts && opts.backoff) || 500;
+  let lastErr = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) await sleep(backoff * attempt);
+    try {
+      const r = await fetch(url, init);
+      if (r.ok) return r;
+      if (retryStatuses.indexOf(r.status) >= 0 && attempt < retries) {
+        lastErr = new Error("HTTP " + r.status);
+        continue; // 瞬时错误，重试
+      }
+      return r; // 非重试类错误（如 400/401/429），原样返回给上层
+    } catch (e) {
+      if (e && e.name === "AbortError") throw e; // 用户停止，不重试
+      lastErr = e;
+      if (attempt < retries) continue;
+      throw e;
+    }
+  }
+  throw lastErr || new Error("fetchWithRetry: 重试耗尽");
+}
+
 // 在阿里云百炼注册一个 CosyVoice v3.5 音色，返回 voice_id
 async function enrollVoice(apiKey, wsId, env) {
   const refUrl = (env.COSYVOICE_REF_URL || "https://tingbook.pages.dev/listen-to-your-voice/ltyv_reference.wav").trim();
@@ -81,7 +110,7 @@ async function enrollVoice(apiKey, wsId, env) {
   const ctrl = new AbortController();
   const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 120000);
   try {
-    const r = await fetch(url, {
+    const r = await fetchWithRetry(url, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -97,7 +126,7 @@ async function enrollVoice(apiKey, wsId, env) {
         },
       }),
       signal: ctrl.signal,
-    });
+    }, { retries: 3, retryStatuses: [502, 503, 504, 520, 521, 522, 523, 524] });
     clearTimeout(to);
     if (!r.ok) {
       const txt = await r.text().catch(() => "");
@@ -132,47 +161,59 @@ async function synthesize(apiKey, wsId, env, voiceId, text) {
   }
   const ctrl = new AbortController();
   const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 120000);
-  try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-    clearTimeout(to);
-    if (!r.ok) {
-      const txt = await r.text().catch(() => "");
-      throw new Error(`synth HTTP ${r.status} - ${txt.slice(0, 200)}`);
+  let lastErr = null;
+  // 整段合成最多重试 1 次：当 OSS 回源持续 520（Cloudflare 出网到阿里云 OSS 偶发空响应）时，
+  // 重试整段合成，阿里云下次可能直接返回 base64（output.audio.data），从而省去 OSS 回源这一跳。
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      const r = await fetchWithRetry(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      }, { retries: 3, retryStatuses: [502, 503, 504, 520, 521, 522, 523, 524] });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        throw new Error(`synth HTTP ${r.status} - ${txt.slice(0, 200)}`);
+      }
+      // 注意：SpeechSynthesizer 返回的是 JSON，音频在 output.audio.url（OSS 临时地址）
+      // 或 output.audio.data（base64），并不是直接的二进制流，必须解析后再取音频。
+      const j = await r.json();
+      const audio = j && j.output && j.output.audio;
+      if (!audio) throw new Error("synth 返回没有 output.audio：" + JSON.stringify(j).slice(0, 200));
+      // 1) 优先 base64 data
+      if (audio.data) {
+        const bin = atob(audio.data);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        if (bytes.byteLength < 200) throw new Error(`synth 返回空音频（${bytes.byteLength} 字节）`);
+        clearTimeout(to);
+        return bytes.buffer;
+      }
+      // 2) 否则回源拉取 OSS url（带重试）
+      if (audio.url) {
+        const a2 = await fetchWithRetry(audio.url, { signal: ctrl.signal }, { retries: 3, retryStatuses: [502, 503, 504, 520, 521, 522, 523, 524] });
+        if (!a2.ok) throw new Error(`回源拉取音频 HTTP ${a2.status}`);
+        const buf = await a2.arrayBuffer();
+        if (!buf || buf.byteLength < 200) throw new Error(`回源音频为空（${buf ? buf.byteLength : 0} 字节）`);
+        clearTimeout(to);
+        return buf;
+      }
+      throw new Error("synth 返回的 output.audio 既没有 data 也没有 url：" + JSON.stringify(audio).slice(0, 200));
+    } catch (e) {
+      if (e && e.name === "AbortError") { clearTimeout(to); throw e; } // 用户主动停止，不重试
+      lastErr = e;
+      // 仅在 OSS 回源这类瞬时错误时，重试整段合成（争取拿到 base64，省去 OSS 回源）
+      if (attempt < 1 && /回源拉取音频/.test(e.message || "")) continue;
+      clearTimeout(to);
+      throw e;
     }
-    // 注意：SpeechSynthesizer 返回的是 JSON，音频在 output.audio.url（OSS 临时地址）
-    // 或 output.audio.data（base64），并不是直接的二进制流，必须解析后再取音频。
-    const j = await r.json();
-    const audio = j && j.output && j.output.audio;
-    if (!audio) throw new Error("synth 返回没有 output.audio：" + JSON.stringify(j).slice(0, 200));
-    // 1) 优先 base64 data
-    if (audio.data) {
-      const bin = atob(audio.data);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      if (bytes.byteLength < 200) throw new Error(`synth 返回空音频（${bytes.byteLength} 字节）`);
-      return bytes.buffer;
-    }
-    // 2) 否则回源拉取 OSS url（http/https 均可）
-    if (audio.url) {
-      const a2 = await fetch(audio.url);
-      if (!a2.ok) throw new Error(`回源拉取音频 HTTP ${a2.status}`);
-      const buf = await a2.arrayBuffer();
-      if (!buf || buf.byteLength < 200) throw new Error(`回源音频为空（${buf ? buf.byteLength : 0} 字节）`);
-      return buf;
-    }
-    throw new Error("synth 返回的 output.audio 既没有 data 也没有 url：" + JSON.stringify(audio).slice(0, 200));
-  } catch (e) {
-    clearTimeout(to);
-    throw e;
   }
+  clearTimeout(to);
+  throw lastErr || new Error("synthesize: 重试耗尽");
 }
 
 export const onRequest = (ctx) => {
