@@ -10,7 +10,20 @@
 (function(){
   "use strict";
   var SITE_K = "1396788686";          // 与 js-gate.js 一致
-  var NAME = "小猪猪你个胖崽";
+  // 昵称不再硬编码：全文昵称改为动态引用「音色仓库默认语音的文件名」。
+  // window.tbNickname() 由 js-carousel.js 提供；默认音变更时它调用下面的 window.tbApplyNickname() 重渲染。
+  window.tbApplyNickname = function(){
+    try{
+      var n = (window.tbNickname ? window.tbNickname() : '');
+      if(typeof paintGreet === 'function') paintGreet();
+      var mn = document.getElementById('my-name-text');
+      if(mn) mn.textContent = n;
+      var li = document.getElementById('letter-input');
+      if(li) li.placeholder = n ? ('写给' + n + '的话……') : '想对她说的话……';
+      var bt = document.getElementById('bday-title-text');
+      if(bt) bt.textContent = '生日快乐，' + (n || '');
+    }catch(e){}
+  };
 
   /* ---------- 1. 个性化问候 ---------- */
   function greetText(){
@@ -22,7 +35,8 @@
     else if(h < 18)  t = "下午好";
     else if(h < 23)  t = "晚上好";
     else             t = "夜深了，梦里也早点见";
-    return NAME + "，" + t;
+    var n = (window.tbNickname ? window.tbNickname() : '');
+    return n ? (n + "，" + t) : t;
   }
   function paintGreet(){
     var s = greetText();
@@ -129,7 +143,7 @@
     if(el) return el;
     el = document.createElement("div");
     el.id = "missyou-layer";
-    el.innerHTML = '<div class="my-name">漪默海</div><div class="my-sub">想你</div>';
+    el.innerHTML = '<div class="my-name" id="my-name-text">' + (window.tbNickname ? window.tbNickname() : '') + '</div><div class="my-sub">想你</div>';
     document.body.appendChild(el);
     return el;
   }
@@ -239,7 +253,7 @@
     ov.innerHTML =
       '<div class="bday-box">'
       + '<div class="bday-cake" title="点我放歌">🎂</div>'
-      + '<div class="bday-title">生日快乐，' + NAME + '</div>'
+      + '<div class="bday-title" id="bday-title-text">生日快乐，' + (window.tbNickname ? window.tbNickname() : '') + '</div>'
       + '<div class="bday-sub">农历十一月廿九 · 这是为你亮着的一天</div>'
       + '<div class="bday-hint">点蛋糕，放一首生日快乐歌</div>'
       + '<button class="bday-close" type="button">先收下，继续逛</button>'

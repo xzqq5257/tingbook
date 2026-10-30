@@ -20,6 +20,13 @@
 
   var dash=document.getElementById('mine-dash');
   function esc(s){return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  // 全局：默认音色文件名（供全文昵称等文案动态引用；默认音变更时由本文件更新并广播 tbApplyNickname）
+  window.TB_VOICE_DEFAULT = null;
+  window.tbNickname = function(){
+    var d = window.TB_VOICE_DEFAULT;
+    var n = d && (d.fileName || d.name);
+    return (n || '').trim();
+  };
   // 已取消账号登录：直接展示仪表盘 + 加载音色仓库（所有访客共享）
   async function refreshMine(){
     dash.classList.remove('hidden');
@@ -32,6 +39,8 @@
       var r=await fetch('/api/voices');var j=await r.json();
       if(!j.ok){list.innerHTML='<span class="muted">加载失败：'+(j.error||'')+'</span>';return;}
       var active=j.active;
+      window.TB_VOICE_DEFAULT = (j.voices.filter(function(v){return v.id===active;})[0]) || null;
+      if(window.tbApplyNickname) window.tbApplyNickname();
       if(!j.voices.length){list.innerHTML='<span class="muted">还没有音色，上传一个开始吧。</span>';return;}
       list.innerHTML='';
       j.voices.forEach(function(v){
@@ -69,7 +78,13 @@
   var tingStatus=document.getElementById('ting-status');
   if(tingStatus){
     fetch('/api/voice-active').then(function(r){return r.json();}).then(async function(j){
-      if(j.active){try{var v=await(await fetch('/api/voices')).json();var cur=v.voices&&v.voices.find(function(x){return x.id===j.active;});if(cur)tingStatus.textContent='当前克隆音色：'+cur.name;}catch(e){}}
+      window.TB_VOICE_DEFAULT=null;
+      if(j.active){try{
+        var v=await(await fetch('/api/voices')).json();
+        var cur=v.voices&&v.voices.find(function(x){return x.id===j.active;});
+        if(cur){window.TB_VOICE_DEFAULT=cur;tingStatus.textContent='当前克隆音色：'+cur.name;}
+      }catch(e){}}
+      if(window.tbApplyNickname) window.tbApplyNickname();
     }).catch(function(){});
   }
 })();

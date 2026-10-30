@@ -42,6 +42,7 @@ export async function onRequestGet({ env }) {
     voices.push({
       id: meta.id,
       name: meta.name,
+      fileName: meta.fileName || meta.name,   // 上传时的原始文件名（无则回退 name）
       refText: meta.refText || "",
       created: meta.created,
       hasAudio: true,
@@ -75,7 +76,7 @@ export async function onRequestPost({ request, env }) {
   const id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "v" + Date.now().toString(36);
   const buf = await file.arrayBuffer();
   const audioB64 = b64(buf);
-  const meta = { id, name, refText, created: Date.now() };
+  const meta = { id, name, fileName: (file && file.name) || name, refText, created: Date.now() };
   await kv.put(`voice:${id}`, JSON.stringify(meta));
   await kv.put(`voice:audio:${id}`, audioB64);
 
