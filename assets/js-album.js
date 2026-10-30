@@ -1009,6 +1009,27 @@
     });
   }
   function hideReader(){ rvStopRead(); var rv=document.getElementById('reader-view'); if(rv) rv.classList.remove('show'); }
+  // CosyVoice 即时朗读入口：用「已生成的音频」打开 canvas 阅读器并做听书光标对齐
+  // （来自我的页指令框，已经过 /api/ting-read 合成一次，避免重复请求）
+  window.tbOpenCosy = function(title, text, blobUrl){
+    try{
+      rvBookId = 'cosy_' + Date.now();
+      rvBookTitle = title || '即读文本';
+      rvIsPoetry = false;
+      rvBookAudio = blobUrl;        // 用生成的 CosyVoice 音频，而非静态 mp3
+      rvBookList = null; rvBookPos = -1; rvUpdateBookNav();
+      rvParse(text || '');
+      var rv = document.getElementById('reader-view');
+      var rvTitleEl = document.getElementById('rv-title'); if(rvTitleEl) rvTitleEl.textContent = '《' + rvBookTitle + '》';
+      rv.classList.add('show'); rvApply(); rvSyncBg();
+      requestAnimationFrame(function(){
+        rvBuild();
+        rvIdx = 0; rvRender(); rvBuildToc();
+        unlockMedia();              // 在用户手势链内建立媒体/语音播放许可，避免 autoplay 被拦
+        rvReadBook();               // 用 rvBookAudio(=blobUrl) 播放并做光标对齐
+      });
+    }catch(e){ console.error('[tbOpenCosy]', e); }
+  };
   // 阅读器「上一篇/下一篇」：在书架书列表中切换上一本/下一本
   function rvStepBook(dir){
     if(!rvBookList || rvBookPos<0) return;

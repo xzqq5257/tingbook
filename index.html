@@ -241,6 +241,16 @@
           <span id="bg-msg" class="muted"></span>
         </div>
       </div>
+      <div class="card-box">
+        <h3>🗣 CosyVoice 朗读指令</h3>
+        <p class="muted">用自然语言下达朗读任务：输入「我想用默认语音朗读《书名》」，云端百炼 CosyVoice 会朗读该篇，并同时推送到「电台」（可重听）与「阅读界面」（带同步听书光标）。书库里找不到的书名，会自动改为朗读你输入的全部文字。</p>
+        <textarea id="cosy-cmd" class="inp" rows="3" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="例如：我想用默认语音朗读《将进酒》"></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <button id="cosy-send" class="play-btn">🔊 生成并推送</button>
+          <button id="cosy-stop" class="badge">⏹ 停止</button>
+          <span id="cosy-status" class="meta"></span>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -364,8 +374,8 @@
   <div class="np-bar-prog" id="np-prog"></div>
 </div>
 <script src="assets/js-carousel.js?v=20260923a" defer></script>
-<script src="assets/js-reader.js?v=20260923a" defer></script>
-<script src="assets/js-album.js?v=20260923a" defer></script>
+<script src="assets/js-reader.js?v=20261030a" defer></script>
+<script src="assets/js-album.js?v=20261030a" defer></script>
 
 <script src="assets/js-extra4.js?v=20260923a" defer></script>
 <script src="assets/js-heart.js?v=20260923a" defer></script>

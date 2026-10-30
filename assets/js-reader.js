@@ -24,6 +24,7 @@ const ppSeek = document.getElementById('pp-seek');
 const ppTime = document.getElementById('pp-time');
 
 let playlist = [], plIndex = -1, playingAll = false;
+let cosyTracks = [];   // CosyVoice 即时朗读生成的曲目（本次会话，blob URL）
 let curSentences = [], curMarks = null, curActive = -1;
 const PROGRESS_KEY = 'tingbook_progress_v1';
 const SPEED_KEY = 'tingbook_speed_v1';
@@ -774,7 +775,22 @@ function renderMusic(){
     album.onclick = function(){ playFromMusic(b); };
     grid.appendChild(album);
   });
-  const mc = document.getElementById('music-count'); if(mc) mc.textContent = BOOKS.length + ' 篇';
+  // CosyVoice 即时生成的曲目：追加进电台专辑网格（渐变封面 + CosyVoice 标记）
+  cosyTracks.forEach(function(b){
+    const album = document.createElement('div'); album.className = 'album cosy';
+    album.dataset.cat = 'CosyVoice'; album.dataset.title = b.title;
+    const cover = document.createElement('div'); cover.className = 'a-cover';
+    cover.style.background = 'linear-gradient(135deg,#7c5cff,#3ddc97)';
+    cover.innerHTML = '<div class="bc-title">' + b.title + '</div>';
+    const play = document.createElement('button'); play.className = 'a-play'; play.textContent = '▶'; play.title = '朗读';
+    cover.appendChild(play);
+    const tEl = document.createElement('div'); tEl.className = 'a-title'; tEl.textContent = b.title;
+    const sEl = document.createElement('div'); sEl.className = 'a-sub'; sEl.textContent = 'CosyVoice · 听书';
+    album.appendChild(cover); album.appendChild(tEl); album.appendChild(sEl);
+    album.onclick = function(){ playFromMusic(b); };
+    grid.appendChild(album);
+  });
+  const mc = document.getElementById('music-count'); if(mc) mc.textContent = (BOOKS.length + cosyTracks.length) + ' 篇';
   const hc = document.getElementById('m-hero-cover'); if(hc) hc.style.background = 'linear-gradient(135deg,#ec4141,#7a1f1f)';
 }
 
@@ -823,6 +839,64 @@ buildChips(document.getElementById('cat-chips'), document.getElementById('list')
 buildChips(document.getElementById('music-chips'), document.getElementById('album-grid'));
 renderMusic();
 const bc = document.getElementById('book-count'); if(bc) bc.textContent = BOOKS.length + ' 篇';
+
+// ===== CosyVoice 朗读指令框（我的页）=====
+// 解析「我想用默认语音朗读《书名》」→ POST /api/ting-read（百炼 CosyVoice 默认音色）→
+// 推送到「电台」专辑网格 + 打开「阅读界面」canvas 阅读器（用生成的音频做听书光标对齐）。
+(function(){
+  const sendBtn = document.getElementById('cosy-send');
+  const stopBtn = document.getElementById('cosy-stop');
+  const input = document.getElementById('cosy-cmd');
+  if(!sendBtn || !input) return;
+  let ctrl = null;
+  function setStatus(s){ const el = document.getElementById('cosy-status'); if(el) el.textContent = s || ''; }
+  function findBook(t){
+    if(!t) return null;
+    return BOOKS.find(function(x){ return x.title === t || x.title.indexOf(t) >= 0 || t.indexOf(x.title) >= 0; }) || null;
+  }
+  async function run(){
+    const raw = input.value.trim();
+    if(!raw){ setStatus('请输入指令，例如：我想用默认语音朗读《将进酒》'); return; }
+    // 在用户点击手势内提前解锁媒体/语音播放许可（合成是异步的，避免返回时 autoplay 被拦）
+    try{ if('speechSynthesis' in window){ var _u = new SpeechSynthesisUtterance(' '); _u.volume = 0; speechSynthesis.speak(_u); } }catch(e){}
+    try{ var _AC = window.AudioContext || window.webkitAudioContext; if(_AC){ var _ac = new _AC(); if(_ac.state === 'suspended') _ac.resume(); } }catch(e){}
+    const m = raw.match(/[《<]([^》>]+)[》>]/);
+    let bookText, bookTitle, fallback = false;
+    if(m){
+      const t = m[1].trim();
+      const b = findBook(t);
+      if(b){ bookText = b.text; bookTitle = b.title; }
+      else { setStatus('书库里没找到《' + t + '》，已改为朗读你输入的全部文字'); bookText = raw; bookTitle = t; fallback = true; }
+    } else { bookText = raw; bookTitle = '即读文本'; }
+
+    setStatus('正在调用百炼 CosyVoice 合成…');
+    try{
+      ctrl = new AbortController();
+      const r = await fetch('/api/ting-read', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: bookText }),
+        signal: ctrl.signal
+      });
+      if(!r.ok){ const j = await r.json().catch(function(){ return {}; }); setStatus('合成失败：' + (j.error || ('HTTP ' + r.status))); return; }
+      const blob = await r.blob();
+      if(!blob || !blob.size){ setStatus('合成返回空音频'); return; }
+      const url = URL.createObjectURL(blob);
+      const track = { title: bookTitle + (m ? '（CosyVoice）' : ''), text: bookText, file: url, cosy: true, ts: Date.now() };
+      cosyTracks.unshift(track);
+      renderMusic();   // 推送到电台专辑网格
+      setStatus('已生成，正在打开「阅读界面」…');
+      if(window.tbOpenCosy) window.tbOpenCosy(bookTitle, bookText, url);   // 推送到阅读界面（同步光标）
+      setStatus('完成 ✓ 已用默认语音朗读《' + bookTitle + '》——「阅读界面」正在播放，「电台」里可随时重听。');
+    }catch(e){
+      if(e && e.name === 'AbortError') setStatus('已停止');
+      else setStatus('出错：' + (e && e.message || e));
+    }finally{ ctrl = null; }
+  }
+  sendBtn.addEventListener('click', run);
+  if(stopBtn) stopBtn.addEventListener('click', function(){ if(ctrl) ctrl.abort(); });
+  input.addEventListener('keydown', function(e){ if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){ e.preventDefault(); run(); } });
+})();
 
 // ---- 背景图：黑胶盘 + 电台 hero 共用同一张用户上传的图 ----
 (function(){
